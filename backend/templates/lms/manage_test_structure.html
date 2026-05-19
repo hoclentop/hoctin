@@ -1,0 +1,871 @@
+{% extends 'base.html' %}
+{% load l10n %}
+
+{% block title %}Quản lý Cấu trúc Đề thi - {{ test.title }} - HocTin LMS{% endblock %}
+
+{% block extra_head %}
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(224, 231, 255, 0.8);
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+     x-data="{
+        // Khởi tạo danh sách câu hỏi phẳng từ Django
+        questions: [
+            {% for part in parts_data %}
+                {% for tq in part.questions %}
+                {
+                    id: {{ tq.id|unlocalize }},
+                    question_id: {{ tq.question.id|unlocalize }},
+                    question_content: '{{ tq.question.content|truncatechars:70|escapejs }}',
+                    type_display: '{{ tq.question.get_question_type_display|escapejs }}',
+                    points: {{ tq.points|unlocalize }},
+                    optional_type: '{{ tq.optional_type|escapejs }}',
+                    part_number: {{ tq.part_number|unlocalize }},
+                    order_index: {{ tq.order_index|unlocalize }}
+                },
+                {% endfor %}
+            {% endfor %}
+        ],
+        
+        // Trạng thái tìm kiếm
+        searchQuery: '',
+        selectedGroup: '',
+        selectedType: '',
+        searchResults: [],
+        isSearching: false,
+
+        testId: {{ test.id|unlocalize }},
+        isSaving: false,
+
+        // Trạng thái Modal Thêm nhanh câu hỏi
+        showQuickAddModal: false,
+        rawQuickAddIds: '',
+        quickAddErrors: [],
+
+        // Trạng thái Modal Quản lý lời dẫn phần thi
+        showInstructionModal: false,
+        instructionPartNum: 1,
+        selectedInstructionId: '',
+        showCreateNewForm: false,
+        newInstructionTitle: '',
+        newInstructionContent: '',
+        sharedInstructions: [
+            {% for si in shared_instructions %}
+            {
+                id: {{ si.id|unlocalize }},
+                title: '{{ si.title|escapejs }}',
+                content: '{{ si.content|escapejs }}'
+            },
+            {% endfor %}
+        ],
+        instructions: [
+            {% for pi in test.part_instructions.all %}
+                {% if pi.instruction %}
+                {
+                    part_number: {{ pi.part_number|unlocalize }},
+                    instruction_id: {{ pi.instruction.id|unlocalize }},
+                    content: '{{ pi.instruction.content|escapejs }}'
+                },
+                {% endif %}
+            {% endfor %}
+        ],
+
+        // Tính tổng điểm trong thời gian thực
+        get totalPoints() {
+            let total = 0;
+            this.questions.forEach(q => {
+                total += parseFloat(q.points || 0);
+            });
+            return total;
+        },
+
+        // Tính tổng số phần (số nguyên duy nhất)
+        get totalParts() {
+            let partNums = new Set(this.questions.map(q => q.part_number));
+            return partNums.size || 1;
+        },
+
+        init() {
+            // Sắp xếp câu hỏi theo thứ tự hiển thị
+            this.questions.sort((a, b) => a.order_index - b.order_index);
+            this.searchQuestions();
+            // Lắng nghe thay đổi của bộ lọc để tự động tìm kiếm
+            this.$watch('searchQuery', () => this.searchQuestions());
+            this.$watch('selectedGroup', () => this.searchQuestions());
+            this.$watch('selectedType', () => this.searchQuestions());
+        },
+
+        // API Tìm kiếm câu hỏi
+        searchQuestions() {
+            this.isSearching = true;
+            let url = `/questions/search-ajax/?q=${encodeURIComponent(this.searchQuery)}&group_id=${this.selectedGroup}&type=${this.selectedType}`;
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    this.searchResults = data.results || [];
+                    this.isSearching = false;
+                })
+                .catch(err => {
+                    console.error('Lỗi tìm kiếm câu hỏi:', err);
+                    this.isSearching = false;
+                });
+        },
+
+        // API Thêm thẳng câu hỏi vào đề với cấu hình mặc định (Không qua modal)
+        addQuestionDirectly(qId, forceAdd = false) {
+            this.isSaving = true;
+            
+            // Tìm số thứ tự lớn nhất hiện tại
+            let maxOrder = 0;
+            this.questions.forEach(q => {
+                if (q.order_index > maxOrder) maxOrder = q.order_index;
+            });
+            let nextOrder = maxOrder + 1;
+
+            fetch(`/tests/${this.testId}/questions/add-ajax/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    question_id: qId,
+                    points: 1.0,
+                    optional_type: 'NONE',
+                    part_number: 1,
+                    force_add: forceAdd
+                })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Lỗi hệ thống') });
+                return res.json();
+            })
+            .then(data => {
+                if (data.warning) {
+                    this.isSaving = false;
+                    if (confirm(data.message)) {
+                        this.addQuestionDirectly(qId, true);
+                    }
+                    return;
+                }
+                this.questions.push({
+                    id: data.id,
+                    question_id: data.question_id,
+                    question_content: data.question_content,
+                    type_display: data.type_display,
+                    points: data.points,
+                    optional_type: 'NONE',
+                    part_number: 1,
+                    order_index: nextOrder
+                });
+                // Sắp xếp lại danh sách
+                this.questions.sort((a, b) => a.order_index - b.order_index);
+                this.isSaving = false;
+            })
+            .catch(err => {
+                alert('Lỗi khi thêm câu hỏi: ' + err.message);
+                this.isSaving = false;
+            });
+        },
+
+        // API Cập nhật câu hỏi thời gian thực (Inline Autosave)
+        updateQuestion(q) {
+            this.isSaving = true;
+            fetch(`/tests/questions/${q.id}/update-ajax/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    points: parseFloat(q.points || 0),
+                    order_index: parseInt(q.order_index || 1),
+                    optional_type: q.optional_type,
+                    part_number: parseInt(q.part_number || 1)
+                })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Lỗi hệ thống') });
+                return res.json();
+            })
+            .then(data => {
+                // Đồng bộ lại giá trị từ phản hồi
+                q.points = data.points;
+                q.order_index = data.order_index;
+                q.optional_type = data.optional_type;
+                q.part_number = data.part_number;
+                
+                // Sắp xếp lại theo thứ tự mới
+                this.questions.sort((a, b) => a.order_index - b.order_index);
+                
+                setTimeout(() => {
+                    this.isSaving = false;
+                }, 300);
+            })
+            .catch(err => {
+                alert('Lỗi lưu thay đổi: ' + err.message);
+                this.isSaving = false;
+            });
+        },
+
+        // API Gỡ liên kết câu hỏi khỏi phần thi
+        deleteQuestion(tqId, idx) {
+            if (!confirm('Gỡ câu hỏi này khỏi đề thi?')) return;
+            this.isSaving = true;
+            fetch(`/tests/questions/${tqId}/delete-ajax/`, {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    this.questions.splice(idx, 1);
+                    this.isSaving = false;
+                } else {
+                    alert('Lỗi: ' + data.error);
+                    this.isSaving = false;
+                }
+            })
+            .catch(err => {
+                alert('Lỗi kết nối máy chủ.');
+                this.isSaving = false;
+            });
+        },
+
+        // Xử lý mở Modal Thêm nhanh câu hỏi
+        openQuickAdd() {
+            this.rawQuickAddIds = '';
+            this.quickAddErrors = [];
+            this.showQuickAddModal = true;
+        },
+
+        // API Thực hiện thêm nhanh câu hỏi bằng ID
+        submitQuickAdd(forceAdd = false) {
+            if (!this.rawQuickAddIds.trim()) {
+                alert('Vui lòng nhập danh sách mã ID câu hỏi.');
+                return;
+            }
+            this.isSaving = true;
+            this.quickAddErrors = [];
+            
+            fetch(`/tests/${this.testId}/questions/add-quick-ajax/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ids: this.rawQuickAddIds,
+                    force_add: forceAdd
+                })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Lỗi hệ thống') });
+                return res.json();
+            })
+            .then(data => {
+                if (data.warning) {
+                    this.isSaving = false;
+                    if (confirm(data.message)) {
+                        this.submitQuickAdd(true);
+                    }
+                    return;
+                }
+                if (data.added && data.added.length > 0) {
+                    data.added.forEach(newQ => {
+                        this.questions.push(newQ);
+                    });
+                    // Sắp xếp lại
+                    this.questions.sort((a, b) => a.order_index - b.order_index);
+                }
+                if (data.errors && data.errors.length > 0) {
+                    this.quickAddErrors = data.errors;
+                } else {
+                    this.showQuickAddModal = false;
+                }
+                this.isSaving = false;
+            })
+            .catch(err => {
+                alert('Lỗi: ' + err.message);
+                this.isSaving = false;
+            });
+        },
+
+        // Xử lý mở Modal quản lý lời dẫn phần thi
+        openInstructionManager() {
+            this.instructionPartNum = 1;
+            this.selectedInstructionId = '';
+            this.showCreateNewForm = false;
+            this.newInstructionTitle = '';
+            this.newInstructionContent = '';
+            this.showInstructionModal = true;
+        },
+
+        // Gán dữ liệu của phần đã chọn lên form để chỉnh sửa nhanh
+        editInstructionInline(partNum, instId, content) {
+            this.instructionPartNum = partNum;
+            this.selectedInstructionId = instId;
+            this.showCreateNewForm = false;
+            this.newInstructionTitle = '';
+            this.newInstructionContent = '';
+        },
+
+        // API Lưu / Cập nhật lời dẫn cho phần thi
+        saveInstruction() {
+            if (!this.instructionPartNum || this.instructionPartNum < 1) {
+                alert('Vui lòng nhập số phần hợp lệ.');
+                return;
+            }
+
+            let payload = {
+                part_number: parseInt(this.instructionPartNum)
+            };
+
+            if (this.showCreateNewForm) {
+                if (!this.newInstructionContent.trim()) {
+                    alert('Vui lòng nhập nội dung lời dẫn mới.');
+                    return;
+                }
+                payload.title = this.newInstructionTitle;
+                payload.content = this.newInstructionContent;
+            } else {
+                if (!this.selectedInstructionId) {
+                    alert('Vui lòng chọn một lời dẫn từ danh sách hoặc click thêm mới.');
+                    return;
+                }
+                payload.instruction_id = parseInt(this.selectedInstructionId);
+            }
+
+            this.isSaving = true;
+            fetch(`/tests/${this.testId}/instructions/update-ajax/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Lỗi hệ thống') });
+                return res.json();
+            })
+            .then(data => {
+                let existingIdx = this.instructions.findIndex(item => item.part_number === data.part_number);
+                if (data.content) {
+                    if (existingIdx !== -1) {
+                        this.instructions[existingIdx].content = data.content;
+                        this.instructions[existingIdx].instruction_id = data.instruction_id;
+                    } else {
+                        this.instructions.push({
+                            part_number: data.part_number,
+                            instruction_id: data.instruction_id,
+                            content: data.content
+                        });
+                    }
+                } else {
+                    if (existingIdx !== -1) {
+                        this.instructions.splice(existingIdx, 1);
+                    }
+                }
+
+                // Nếu vừa thêm mới một SharedInstruction, cập nhật vào danh sách sharedInstructions trên client
+                if (data.instruction_id) {
+                    let sharedIdx = this.sharedInstructions.findIndex(si => si.id === data.instruction_id);
+                    if (sharedIdx === -1) {
+                        this.sharedInstructions.push({
+                            id: data.instruction_id,
+                            title: data.instruction_title,
+                            content: data.content
+                        });
+                    }
+                }
+
+                this.newInstructionTitle = '';
+                this.newInstructionContent = '';
+                this.selectedInstructionId = '';
+                this.showCreateNewForm = false;
+                
+                alert(data.message);
+                this.isSaving = false;
+            })
+            .catch(err => {
+                alert('Lỗi: ' + err.message);
+                this.isSaving = false;
+            });
+        },
+
+        // API Xoá nhanh lời dẫn của phần thi
+        deleteInstruction(partNum) {
+            if (!confirm(`Xóa lời dẫn cho Phần ${partNum}?`)) return;
+            this.isSaving = true;
+            fetch(`/tests/${this.testId}/instructions/update-ajax/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    part_number: partNum,
+                    instruction_id: null // Gửi null để gỡ liên kết
+                })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Lỗi hệ thống') });
+                return res.json();
+            })
+            .then(data => {
+                let existingIdx = this.instructions.findIndex(item => item.part_number === partNum);
+                if (existingIdx !== -1) {
+                    this.instructions.splice(existingIdx, 1);
+                }
+                if (this.instructionPartNum === partNum) {
+                    this.selectedInstructionId = '';
+                    this.showCreateNewForm = false;
+                }
+                alert(data.message);
+                this.isSaving = false;
+            })
+            .catch(err => {
+                alert('Lỗi: ' + err.message);
+                this.isSaving = false;
+            });
+        }
+     }">
+
+    <!-- Top Navigation breadcrumbs & Title -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <nav class="flex text-sm text-gray-500 mb-2">
+                <a href="{% url 'test_list' %}" class="hover:text-indigo-600">Đề thi</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-900 font-semibold">{{ test.title }}</span>
+            </nav>
+            <h1 class="text-3xl font-extrabold text-gray-900 font-outfit flex items-center gap-3 flex-wrap">
+                Cấu trúc đề: {{ test.title }}
+                <div class="flex gap-2">
+                    <a href="{% url 'edit_test_basic' test.id %}" class="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 p-2 py-1 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        Sửa thông tin cơ bản
+                    </a>
+                    <a href="{% url 'preview_test' test.id %}" target="_blank" class="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 p-2 py-1 rounded-lg border border-emerald-200 transition-colors flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        Xem thử đề thi
+                    </a>
+                </div>
+            </h1>
+            <p class="text-gray-500 text-sm mt-1">Chỉnh sửa trực tiếp điểm số, thứ tự, loại câu hỏi và phần thi (số nguyên) trên Bảng phẳng bên dưới.</p>
+        </div>
+        
+        <!-- Live Statistics Counter Badge -->
+        <div class="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <div class="text-center px-4 border-r border-gray-100">
+                <span class="block text-xs font-bold text-gray-400 uppercase tracking-wider">Tổng phần thi</span>
+                <span class="text-xl font-extrabold text-gray-900 font-outfit" x-text="totalParts">1</span>
+            </div>
+            <div class="text-center px-4">
+                <span class="block text-xs font-bold text-gray-400 uppercase tracking-wider">Tổng điểm tối đa</span>
+                <span class="text-xl font-extrabold text-indigo-600 font-outfit" x-text="totalPoints">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Two-Column Panel -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- COLUMN 1: CURRENT EXAM STRUCTURE (FLAT TABLE - 7 cols) -->
+        <div class="lg:col-span-7 space-y-6">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900 font-outfit">Lựa chọn câu hỏi vào đề thi</h3>
+            </div>
+
+            <!-- Empty questions fallback -->
+            <div x-show="questions.length === 0" class="bg-indigo-50/30 rounded-3xl p-12 border-2 border-dashed border-indigo-200 text-center">
+                <div class="w-16 h-16 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                </div>
+                <h4 class="font-bold text-indigo-950 font-outfit text-base">Đề thi chưa có câu hỏi nào!</h4>
+                <p class="text-sm text-indigo-600/80 max-w-sm mx-auto mt-1">Hãy tìm kiếm câu hỏi ở cột bên phải và click "+ Thêm vào đề" để gán câu hỏi.</p>
+            </div>
+
+            <!-- Spreadsheet-like Flat Table Grid -->
+            <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow" x-show="questions.length > 0">
+                <!-- Table Header Tool Belt -->
+                <div class="bg-gradient-to-r from-slate-900 to-indigo-950 p-5 text-white flex items-center justify-between">
+                    <div>
+                        <h4 class="font-outfit font-extrabold text-base flex items-center gap-2">
+                            Bảng cấu hình câu hỏi
+                        </h4>
+                        <p class="text-xs text-slate-300 font-light mt-1">Mọi thay đổi sẽ tự động được lưu lập tức.</p>
+                    </div>
+                    
+                    <!-- Real-time sync status -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-slate-300 font-outfit" x-show="isSaving">
+                            <svg class="animate-spin h-3.5 w-3.5 text-indigo-400 inline mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Đang lưu tự động...
+                        </span>
+                        <span class="text-xs font-bold text-emerald-400 font-outfit flex items-center gap-1" x-show="!isSaving && questions.length > 0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Đã lưu hệ thống
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Table Content -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50/80">
+                            <tr>
+                                <th class="px-2.5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 50px;">Mã</th>
+                                <th class="px-2.5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit">Câu hỏi (70 kí tự đầu)</th>
+                                <th class="px-2.5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 130px;">Thể loại</th>
+                                <th class="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 70px;">Điểm số</th>
+                                <th class="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 70px;">Thứ tự</th>
+                                <th class="px-2 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 110px;">Chế độ</th>
+                                <th class="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 70px;">Phần</th>
+                                <th class="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 110px;">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-150">
+                            <template x-for="(q, idx) in questions" :key="q.id">
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <!-- Mã câu hỏi -->
+                                    <td class="px-2.5 py-2.5 whitespace-nowrap text-xs font-bold text-slate-700 font-mono" x-text="q.question_id"></td>
+                                    
+                                    <!-- Câu hỏi tóm tắt -->
+                                    <td class="px-2.5 py-2.5 text-xs text-gray-800 font-sans font-medium max-w-[160px] truncate" :title="q.question_content" x-text="q.question_content"></td>
+                                    
+                                    <!-- Thể loại -->
+                                    <td class="px-2.5 py-2.5 whitespace-nowrap text-xs text-slate-500 font-outfit max-w-[130px] truncate" :title="q.type_display" x-text="q.type_display"></td>
+                                    
+                                    <!-- Điểm số (Input) -->
+                                    <td class="px-2 py-2.5 whitespace-nowrap text-center">
+                                        <input type="number" step="0.25" min="0.1" max="100" x-model.number="q.points" @change="updateQuestion(q)"
+                                               class="w-14 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs py-1 px-1 font-mono font-bold text-slate-700 text-center">
+                                    </td>
+                                    
+                                    <!-- Thứ tự (Input) -->
+                                    <td class="px-2 py-2.5 whitespace-nowrap text-center">
+                                        <input type="number" min="1" max="1000" x-model.number="q.order_index" @change="updateQuestion(q)"
+                                               class="w-14 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs py-1 px-1 font-mono font-bold text-slate-700 text-center">
+                                    </td>
+                                    
+                                    <!-- Bắt buộc/tự chọn (Select) -->
+                                    <td class="px-2 py-2.5 whitespace-nowrap">
+                                        <select x-model="q.optional_type" @change="updateQuestion(q)"
+                                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-[11px] py-1 px-1.5 font-medium text-slate-700">
+                                            <option value="NONE">Bắt buộc</option>
+                                            <option value="TC1">Tự chọn 1</option>
+                                            <option value="TC2">Tự chọn 2</option>
+                                        </select>
+                                    </td>
+                                    
+                                    <!-- Phần (Input số nguyên) -->
+                                    <td class="px-2 py-2.5 whitespace-nowrap text-center">
+                                        <input type="number" min="1" max="100" x-model.number="q.part_number" @change="updateQuestion(q)"
+                                               class="w-14 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs py-1 px-1 font-mono font-bold text-slate-700 text-center">
+                                    </td>
+                                    
+                                    <!-- Actions (Preview & Delete) -->
+                                    <td class="px-2 py-2.5 whitespace-nowrap text-center">
+                                        <div class="flex items-center justify-center gap-1.5">
+                                            <a :href="'/questions/' + q.question_id + '/'" target="_blank"
+                                               class="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-1.5 py-1 rounded-lg font-bold text-xs transition-all flex items-center gap-0.5">
+                                                Xem
+                                            </a>
+                                            <span class="text-gray-200">|</span>
+                                            <button type="button" @click="deleteQuestion(q.id, idx)"
+                                                    class="text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-1.5 py-1 rounded-lg font-bold text-xs transition-all">
+                                                Xoá
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Action Buttons for Quick Add & Part Instructions -->
+            <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                <button type="button" @click="openQuickAdd()"
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-2xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 font-outfit text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                    Thêm nhanh câu hỏi (ID)
+                </button>
+                <button type="button" @click="openInstructionManager()"
+                        class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-2xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 font-outfit text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    Thêm/sửa lời dẫn phần thi
+                </button>
+            </div>
+        </div>
+
+        <!-- COLUMN 2: QUESTION BANK LIVE SEARCH PANEL (5 cols) -->
+        <div class="lg:col-span-5">
+            <div class="sticky top-6 bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col max-h-[85vh]">
+                
+                <!-- Live Search Header Banner -->
+                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-5 text-white">
+                    <h3 class="font-outfit font-bold text-base flex items-center gap-2">
+                        <span class="animate-pulse inline-block h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
+                        Ngân hàng Câu hỏi trực tuyến
+                    </h3>
+                    <p class="text-xs text-indigo-100 mt-1">Tìm kiếm câu hỏi và chèn trực tiếp vào đề thi thời gian thực.</p>
+                </div>
+
+                <!-- Search Filters Panel -->
+                <div class="p-4 border-b border-gray-100 bg-slate-50 space-y-3">
+                    <!-- Keyword input -->
+                    <div class="relative shadow-sm rounded-xl">
+                        <input type="text" x-model="searchQuery"
+                               placeholder="Tìm kiếm nội dung câu hỏi..."
+                               class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2.5 pl-10 text-sm">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </div>
+                    </div>
+
+                    <!-- Filters grid -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <select x-model="selectedGroup" class="rounded-xl border-gray-300 text-xs py-2">
+                            <option value="">-- Tất cả nhóm --</option>
+                            {% for group in groups %}
+                                <option value="{{ group.id }}">{{ group.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <select x-model="selectedType" class="rounded-xl border-gray-300 text-xs py-2">
+                            <option value="">-- Tất cả hình thức --</option>
+                            <option value="1">Trắc nghiệm 1 lựa chọn</option>
+                            <option value="2">Trắc nghiệm nhiều lựa chọn</option>
+                            <option value="3">Đúng/Sai 4 ý</option>
+                            <option value="4">Trả lời ngắn</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Search Results scrollable area -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
+                    <div x-show="isSearching" class="text-center py-8 text-gray-400 text-xs">
+                        Đang truy vấn ngân hàng...
+                    </div>
+                    <div x-show="!isSearching && searchResults.length === 0" class="text-center py-8 text-gray-400 text-xs">
+                        Không tìm thấy câu hỏi phù hợp.
+                    </div>
+                    
+                    <!-- Search items list -->
+                    <template x-for="item in searchResults" :key="item.id">
+                        <div class="bg-white p-3.5 rounded-2xl border border-gray-250 hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col justify-between">
+                            <div>
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <div class="flex gap-2">
+                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 font-mono" x-text="'ID: ' + item.id"></span>
+                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500" x-text="'Nhóm: ' + item.group_name"></span>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-600" x-text="item.type_display"></span>
+                                </div>
+                                <p class="text-xs text-gray-700 leading-relaxed font-mono line-clamp-3 whitespace-pre-line" x-text="item.content"></p>
+                            </div>
+                            
+                            <!-- Add Action -->
+                            <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-50">
+                                <a :href="'/questions/' + item.id + '/'" target="_blank"
+                                   class="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-[11px] transition-all flex items-center gap-1 font-outfit">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    Xem thử
+                                </a>
+                                <button type="button" @click="addQuestionDirectly(item.id)"
+                                        class="px-3.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white font-bold text-[11px] transition-all flex items-center gap-1">
+                                    + Thêm vào đề
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- MODAL 1: THÊM NHANH CÂU HỎI -->
+    <div x-show="showQuickAddModal" 
+         class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         style="display: none;">
+        <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-gray-100 overflow-hidden">
+            <div class="bg-indigo-600 px-6 py-4 text-white flex justify-between items-center">
+                <h3 class="font-outfit font-extrabold text-lg flex items-center gap-2">
+                    Thêm nhanh câu hỏi bằng ID
+                </h3>
+                <button type="button" @click="showQuickAddModal = false" class="text-white/80 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Nhập danh sách mã ID câu hỏi</label>
+                    <textarea x-model="rawQuickAddIds" rows="5" 
+                              placeholder="Ví dụ: 12 15, 23    44 (phân cách bằng dấu cách, phẩy, tab hoặc dòng mới)"
+                              class="w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm font-mono p-3.5"></textarea>
+                </div>
+                
+                <!-- Hiển thị lỗi cảnh báo -->
+                <div x-show="quickAddErrors.length > 0" class="bg-rose-50 border border-rose-100 rounded-2xl p-4 space-y-1">
+                    <h5 class="text-xs font-bold text-rose-800">Một số cảnh báo:</h5>
+                    <ul class="list-disc list-inside text-xs text-rose-600 space-y-0.5">
+                        <template x-for="err in quickAddErrors">
+                            <li x-text="err"></li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="bg-slate-50 px-6 py-4 flex justify-end gap-3">
+                <button type="button" @click="showQuickAddModal = false"
+                        class="px-5 py-2 rounded-xl text-gray-600 font-bold hover:bg-gray-150 transition-all text-xs">
+                    Huỷ bỏ
+                </button>
+                <button type="button" @click="submitQuickAdd()"
+                        class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all text-xs flex items-center gap-1.5">
+                    Xác nhận thêm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: THÊM / SỬA LỜI DẪN PHẦN THI -->
+    <div x-show="showInstructionModal" 
+         class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         style="display: none;">
+        <div class="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-gray-100 overflow-hidden">
+            <div class="bg-slate-950 px-6 py-4 text-white flex justify-between items-center">
+                <h3 class="font-outfit font-extrabold text-lg flex items-center gap-2">
+                    Quản lý Lời dẫn các Phần thi
+                </h3>
+                <button type="button" @click="showInstructionModal = false" class="text-white/80 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                <!-- FORM SOẠN THẢO -->
+                <div class="p-6 space-y-4">
+                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Soạn thảo lời dẫn</h4>
+                    
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Phần thi số (Số nguyên)</label>
+                        <input type="number" min="1" max="100" x-model.number="instructionPartNum"
+                               class="w-full rounded-xl border-gray-300 shadow-sm focus:border-slate-800 focus:ring-slate-800 text-sm font-bold text-slate-800">
+                    </div>
+                    
+                    <!-- Chọn lời dẫn có sẵn -->
+                    <div class="space-y-1">
+                        <label class="block text-xs text-gray-500 mb-1">Chọn lời dẫn có sẵn</label>
+                        <select x-model="selectedInstructionId" 
+                                @change="if(selectedInstructionId === 'NEW') { showCreateNewForm = true; selectedInstructionId = ''; } else { showCreateNewForm = false; }"
+                                class="w-full rounded-xl border-gray-300 shadow-sm focus:border-slate-800 focus:ring-slate-800 text-xs py-2 text-slate-800">
+                            <option value="">-- Chọn lời dẫn phù hợp... --</option>
+                            <template x-for="si in sharedInstructions" :key="si.id">
+                                <option :value="si.id" x-text="si.title + ' (' + si.content.substring(0, 40) + '...)'"></option>
+                            </template>
+                            <option value="NEW" class="text-indigo-650 font-bold bg-indigo-50 hover:bg-indigo-100">+ Thêm mới lời dẫn...</option>
+                        </select>
+                    </div>
+
+                    <!-- Hiển thị Preview nội dung lời dẫn có sẵn đã chọn -->
+                    <div x-show="selectedInstructionId && !showCreateNewForm" class="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1.5" style="display: none;">
+                        <span class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Xem trước nội dung:</span>
+                        <p class="text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-line" 
+                           x-text="sharedInstructions.find(si => si.id == selectedInstructionId)?.content"></p>
+                    </div>
+
+                    <!-- Form tạo lời dẫn mới -->
+                    <div x-show="showCreateNewForm" class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3" style="display: none;">
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <span class="text-xs font-bold text-slate-800 font-outfit">Tạo lời dẫn mới</span>
+                            <button type="button" @click="showCreateNewForm = false" class="text-xs font-bold text-slate-500 hover:text-slate-700">Quay lại</button>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-0.5">Tên gợi nhớ của lời dẫn mới</label>
+                            <input type="text" x-model="newInstructionTitle" placeholder="Ví dụ: Lời dẫn Trắc nghiệm Đúng Sai"
+                                   class="w-full rounded-xl border-gray-300 shadow-sm focus:border-slate-800 focus:ring-slate-800 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-0.5">Nội dung lời dẫn mới (Markdown + LaTeX)</label>
+                            <textarea x-model="newInstructionContent" rows="4" placeholder="Nhập nội dung lời dẫn..."
+                                      class="w-full rounded-xl border-gray-300 shadow-sm focus:border-slate-800 focus:ring-slate-800 text-xs p-2.5"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="saveInstruction()"
+                                class="w-full bg-slate-900 hover:bg-slate-950 text-white font-bold py-2 rounded-xl transition-all text-xs">
+                            <span x-text="showCreateNewForm ? 'Tạo mới & Áp dụng' : 'Áp dụng lời dẫn đã chọn'"></span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- DANH SÁCH LỜI DẪN HIỆN TẠI -->
+                <div class="p-6 flex flex-col max-h-[420px] overflow-hidden">
+                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Lời dẫn hiện tại</h4>
+                    
+                    <div class="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+                        <div x-show="instructions.length === 0" class="text-center py-12 text-gray-400 text-xs">
+                            Chưa cấu hình lời dẫn nào cho đề thi này.
+                        </div>
+                        
+                        <template x-for="inst in instructions" :key="inst.part_number">
+                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 relative group hover:border-slate-300 transition-colors">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-white uppercase font-mono" 
+                                          x-text="'PHẦN ' + inst.part_number"></span>
+                                    <div class="flex gap-2">
+                                        <button type="button" @click="editInstructionInline(inst.part_number, inst.instruction_id, inst.content)"
+                                                class="text-indigo-600 hover:text-indigo-800 text-xs font-bold">
+                                            Sửa
+                                        </button>
+                                        <button type="button" @click="deleteInstruction(inst.part_number)"
+                                                class="text-rose-600 hover:text-rose-800 text-xs font-bold">
+                                            Xoá
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-slate-600 line-clamp-3 whitespace-pre-line" x-text="inst.content"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

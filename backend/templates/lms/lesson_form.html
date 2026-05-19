@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-12">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-xl p-8">
+        <h1 class="text-3xl font-bold text-gray-900 font-outfit mb-2">{{ title }}</h1>
+        <div class="text-sm font-semibold text-indigo-600 mb-8">Khóa học: {{ course.title }}</div>
+        
+        <form method="POST" class="space-y-6">
+            {% csrf_token %}
+            
+            {% for field in form %}
+            <div id="div_{{ field.name }}">
+                <label class="block text-sm font-bold text-gray-700 mb-2" for="{{ field.id_for_label }}">
+                    {{ field.label }}
+                </label>
+                {{ field }}
+                {% if field.help_text %}
+                <p class="mt-1 text-xs text-gray-500">{{ field.help_text }}</p>
+                {% endif %}
+                {% for error in field.errors %}
+                <p class="mt-1 text-xs text-red-600 font-semibold">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            
+            <div class="pt-6 flex justify-end gap-4">
+                <a href="{% url 'manage_course_structure' course.id %}" class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">
+                    Hủy bỏ
+                </a>
+                <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-colors">
+                    Lưu bài học
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const lessonTypeSelect = document.getElementById("id_lesson_type");
+    
+    const divContent = document.getElementById("div_content");
+    const divVideoUrl = document.getElementById("div_video_url");
+    const divExternalJudge = document.getElementById("div_external_judge_link");
+    const divExternalProblem = document.getElementById("div_external_problem_code");
+    const divTest = document.getElementById("div_test");
+    
+    function toggleFields() {
+        const selectedType = lessonTypeSelect.value;
+        
+        // Reset visibility
+        divContent.style.display = "none";
+        divVideoUrl.style.display = "none";
+        divExternalJudge.style.display = "none";
+        divExternalProblem.style.display = "none";
+        divTest.style.display = "none";
+        
+        if (selectedType === "THEORY") {
+            divContent.style.display = "block";
+            divVideoUrl.style.display = "block";
+        } else if (selectedType === "EXERCISE") {
+            divContent.style.display = "block";
+            divExternalJudge.style.display = "block";
+            divExternalProblem.style.display = "block";
+        } else if (selectedType === "TEST") {
+            divTest.style.display = "block";
+        }
+    }
+    
+    if (lessonTypeSelect) {
+        lessonTypeSelect.addEventListener("change", toggleFields);
+        toggleFields(); // Initial call
+    }
+});
+</script>
+{% endblock %}

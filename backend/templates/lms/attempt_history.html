@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}Lịch sử làm bài - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-12 px-4 sm:px-6">
+    <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-900 font-outfit tracking-tight">
+                {% if test %}Lịch sử làm bài - {{ test.title }}{% else %}Lịch sử làm bài cá nhân{% endif %}
+            </h1>
+            <p class="text-sm text-gray-500 font-light mt-1">
+                {% if test %}Theo dõi tiến trình và điểm số các lần làm đề thi này.{% else %}Theo dõi tiến trình làm bài thi, điểm số đạt được và xem lại chi tiết bài làm.{% endif %}
+            </p>
+        </div>
+        {% if test %}
+            <a href="{% url 'test_list' %}" class="inline-flex items-center px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold text-xs transition-colors">
+                &larr; Trở lại danh sách đề
+            </a>
+        {% endif %}
+    </div>
+
+    <!-- Glassmorphic Card Container -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+        
+        {% if not attempts %}
+            <!-- No Attempts State -->
+            <div class="p-16 text-center">
+                <div class="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 font-outfit mb-2">
+                    {% if test %}Bạn chưa thực hiện đề thi này{% else %}Bạn chưa thực hiện bài thi nào{% endif %}
+                </h3>
+                <p class="text-slate-400 text-sm font-light max-w-sm mx-auto mb-6">
+                    {% if test %}Hãy bắt đầu làm đề thi ngay bây giờ để kiểm tra trình độ lập trình của bạn nhé!{% else %}Hãy chọn một đề thi hoặc kỳ thi chính thức để bắt đầu rèn luyện kỹ năng lập trình nhé!{% endif %}
+                </p>
+                {% if test %}
+                    <a href="{% url 'take_test' test.id %}" class="inline-flex items-center px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md hover:shadow-lg">
+                        Bắt đầu làm bài ngay
+                    </a>
+                {% else %}
+                    <a href="{% url 'test_list' %}" class="inline-flex items-center px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md hover:shadow-lg">
+                        Khám phá danh sách đề thi
+                    </a>
+                {% endif %}
+            </div>
+        {% else %}
+            <!-- Attempts Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Đề thi / Kỳ thi</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Hình thức</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Thời gian bắt đầu</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Trạng thái</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Kết quả đạt được</th>
+                            <th class="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 bg-white">
+                        {% for attempt in attempts %}
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <!-- Test Title -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex flex-col">
+                                        <a href="{% url 'test_detail' attempt.test.id %}" class="text-sm font-bold text-slate-800 hover:text-indigo-600 transition-colors">
+                                            {{ attempt.test.title }}
+                                        </a>
+                                        <span class="text-xs text-slate-400 mt-0.5">Thời gian đề cho: {{ attempt.test.duration }} phút</span>
+                                    </div>
+                                </td>
+                                <!-- Type (Official / Practice) -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if attempt.is_official %}
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
+                                            Chính thức
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100">
+                                            Luyện tập
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <!-- Start Time -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="text-sm text-slate-600">{{ attempt.start_time|date:"d/m/Y H:i:s" }}</span>
+                                </td>
+                                <!-- Status (Ongoing / Finished) -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if attempt.end_time %}
+                                        <span class="inline-flex items-center text-xs font-bold text-emerald-600">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                            Đã nộp bài
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center text-xs font-bold text-amber-500 animate-pulse">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5"></span>
+                                            Đang làm bài
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <!-- Score / Max Points -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if attempt.end_time %}
+                                        <div class="flex items-baseline space-x-1">
+                                            <span class="text-base font-bold text-indigo-600">{{ attempt.total_score }}</span>
+                                            <span class="text-xs text-slate-400">/ {{ attempt.test.total_possible_points }}</span>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-xs text-slate-400 italic">Chưa chấm</span>
+                                    {% endif %}
+                                </td>
+                                <!-- Actions -->
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    {% if attempt.end_time %}
+                                        <a href="{% url 'review_attempt' attempt.id %}" class="inline-flex items-center px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition-colors">
+                                            Xem lại bài
+                                            <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            </svg>
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'take_test' attempt.test.id %}" class="inline-flex items-center px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors shadow-sm">
+                                            Tiếp tục thi
+                                            <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                                            </svg>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+        
+    </div>
+</div>
+{% endblock %}

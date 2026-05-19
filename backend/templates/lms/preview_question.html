@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+
+{% block title %}Xem thử Câu hỏi #{{ question.id }} - HocTin LMS{% endblock %}
+
+{% block extra_head %}
+<!-- Marked for Markdown Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(224, 231, 255, 0.8);
+    }
+    .question-body p { margin-bottom: 0.75rem; }
+    .question-body p:last-child { margin-bottom: 0; }
+    .question-body code { background-color: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+     x-data="{
+        showEquivalent: false
+     }"
+     x-init="
+        $nextTick(() => {
+            // Render main question
+            const rawContent = document.getElementById('raw-question-content-data').textContent;
+            const targetEl = document.getElementById('rendered-question-content');
+            if (targetEl) {
+                targetEl.innerHTML = marked.parse(rawContent);
+            }
+            
+            // Render equivalent questions
+            {% for eq_q in equivalent_questions %}
+            const rawContent{{ eq_q.id }} = document.getElementById('raw-question-content-{{ eq_q.id }}').textContent;
+            const targetEl{{ eq_q.id }} = document.getElementById('rendered-question-content-{{ eq_q.id }}');
+            if (targetEl{{ eq_q.id }}) {
+                targetEl{{ eq_q.id }}.innerHTML = marked.parse(rawContent{{ eq_q.id }});
+            }
+            {% endfor %}
+
+            if (window.renderMathInElement) {
+                window.renderMathInElement(document.getElementById('question-detail-container'), {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+            }
+        });
+     "
+     id="question-detail-container">
+
+    <!-- Raw Question Content for Main Question -->
+    <script id="raw-question-content-data" type="text/plain" style="display:none;">{{ question.content }}</script>
+
+    <!-- Raw Question Content for Equivalent Questions -->
+    {% for eq_q in equivalent_questions %}
+    <script id="raw-question-content-{{ eq_q.id }}" type="text/plain" style="display:none;">{{ eq_q.content }}</script>
+    {% endfor %}
+
+    <!-- Header Actions -->
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <a href="{% url 'question_detail' question.id %}"
+           class="inline-flex items-center text-sm font-semibold text-gray-500 hover:text-indigo-600 transition-colors gap-1.5">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Quay lại chi tiết câu hỏi
+        </a>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                Chế độ Xem thử (Teacher Preview)
+            </span>
+
+            <!-- Form Nhân đôi Câu hỏi -->
+            <form action="{% url 'duplicate_question' question.id %}" method="POST" class="flex items-center gap-3 bg-indigo-50/50 p-2 px-3 rounded-xl border border-indigo-100 shadow-sm">
+                {% csrf_token %}
+                <label class="flex items-center gap-2 text-xs font-semibold text-indigo-900 cursor-pointer select-none">
+                    <input type="checkbox" name="create_equivalent" value="on" checked
+                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                    Tạo nhóm tương đương (Bài gốc #{{ question.id }})
+                </label>
+                <button type="submit"
+                        class="inline-flex items-center text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-all gap-1 shadow-sm">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                    </svg>
+                    Nhân đôi
+                </button>
+            </form>
+
+            <a href="{% url 'edit_question' question.id %}"
+               class="inline-flex items-center text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 border border-indigo-100 rounded-xl transition-all gap-1.5 shadow-sm">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Chỉnh sửa Câu hỏi
+            </a>
+        </div>
+    </div>
+
+    <!-- Toggle Option for Equivalent Questions -->
+    {% if equivalent_questions %}
+    <div class="bg-gradient-to-r from-indigo-50 to-indigo-100 border border-indigo-200 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-indigo-600 rounded-xl text-white shadow-sm">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="font-extrabold text-sm text-gray-900 font-outfit">Nhóm câu hỏi tương đương: {{ question.equivalent_group.name }}</h4>
+                <p class="text-xs text-gray-500 mt-0.5">Nhóm này có tổng cộng {{ equivalent_questions|length|add:1 }} câu hỏi tương đương.</p>
+            </div>
+        </div>
+        <div class="flex items-center">
+            <label class="relative inline-flex items-center cursor-pointer select-none">
+                <input type="checkbox" x-model="showEquivalent" class="sr-only peer">
+                <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                <span class="ml-3 text-sm font-bold text-gray-700 font-outfit">Xem cùng lúc cả nhóm</span>
+            </label>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Main Stack -->
+    <div class="space-y-6">
+        
+        <!-- CARD 1: MAIN QUESTION -->
+        <div class="glass-card rounded-3xl shadow-xl overflow-hidden border border-indigo-150 bg-white">
+            <div class="bg-gray-50/75 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <span class="text-xs font-extrabold bg-indigo-600 text-white px-2.5 py-1 rounded font-mono shadow-sm">
+                    CÂU HỎI CHÍNH #{{ question.id }}
+                </span>
+                <span class="text-xs font-bold text-gray-400">Độ khó/Dạng: {{ question.get_question_type_display }}</span>
+            </div>
+            
+            <div class="p-6 space-y-6">
+                <!-- Question Text Content -->
+                <div>
+                    <div id="rendered-question-content" class="text-gray-900 font-semibold text-base leading-relaxed bg-indigo-50/10 border border-indigo-50 p-5 rounded-2xl question-body shadow-inner">
+                    </div>
+                </div>
+
+                <!-- Answer options with correct ones highlighted -->
+                <div>
+                    <h4 class="text-xs font-extrabold text-gray-400 uppercase tracking-wider mb-3">Nội dung câu hỏi & Đáp án đúng</h4>
+                    
+                    <!-- Single Choice (Type 1) & Multiple Choice (Type 2) -->
+                    {% if question.question_type == 1 or question.question_type == 2 %}
+                        <div class="space-y-3">
+                            {% for choice in choices %}
+                                <div class="flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-sm {% if choice.is_correct %}bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-100{% else %}bg-white border-gray-150 opacity-80{% endif %}">
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold {% if choice.is_correct %}bg-emerald-500 text-white{% else %}bg-gray-100 text-gray-500{% endif %}">
+                                            {{ forloop.counter }}
+                                        </span>
+                                        <span class="text-gray-800 text-sm font-semibold">{{ choice.content }}</span>
+                                    </div>
+                                    {% if choice.is_correct %}
+                                        <span class="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Đáp án đúng
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <!-- True/False (Type 3) -->
+                    {% if question.question_type == 3 %}
+                        <div class="space-y-3">
+                            {% for choice in choices %}
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border transition-all shadow-sm bg-white border-gray-150 gap-3">
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-500">
+                                            {{ forloop.counter }}
+                                        </span>
+                                        <div class="text-gray-800 text-sm font-semibold">{{ choice.content }}</div>
+                                    </div>
+                                    <span class="px-3.5 py-1 rounded-lg text-xs font-extrabold shadow-sm {% if choice.is_correct %}bg-emerald-500 border border-emerald-600 text-white{% else %}bg-rose-500 border border-rose-600 text-white{% endif %}">
+                                        {{ choice.is_correct|yesno:'ĐÚNG,SAI' }}
+                                    </span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <!-- Short Answer (Type 4) -->
+                    {% if question.question_type == 4 %}
+                        <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2">
+                            <span class="text-xs font-bold text-indigo-700">Các phương án trả lời được chấp nhận:</span>
+                            <div class="flex flex-col gap-2.5 pt-1">
+                                {% for choice in choices %}
+                                    <div class="flex flex-wrap items-center justify-between bg-white border border-indigo-200 p-3 rounded-xl shadow-sm gap-2">
+                                        <span class="px-2.5 py-1 rounded bg-indigo-50 font-mono text-indigo-700 text-sm font-bold">{{ choice.content }}</span>
+                                        <div class="flex gap-2">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold {% if choice.is_correct %}bg-indigo-100 text-indigo-700{% else %}bg-gray-100 text-gray-400{% endif %}">
+                                                Phân biệt hoa/thường: {{ choice.is_correct|yesno:'Có,Không' }}
+                                            </span>
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold {% if choice.position == 1 %}bg-indigo-100 text-indigo-700{% else %}bg-gray-100 text-gray-400{% endif %}">
+                                                Bỏ qua khoảng trắng: {{ choice.position|yesno:'Có,Không' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- OTHER EQUIVALENT QUESTIONS (Show when toggle checked) -->
+        {% if equivalent_questions %}
+        <div x-show="showEquivalent" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform -translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0" class="space-y-6">
+            <div class="relative py-2 flex items-center justify-center">
+                <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                    <div class="w-full border-t border-dashed border-indigo-300"></div>
+                </div>
+                <div class="relative bg-gray-100 px-4">
+                    <span class="text-xs font-extrabold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+                        CÁC CÂU HỎI TƯƠNG ĐƯƠNG CÙNG NHÓM
+                    </span>
+                </div>
+            </div>
+
+            {% for eq_q in equivalent_questions %}
+                <div class="glass-card rounded-3xl shadow-lg overflow-hidden border border-gray-200 bg-white">
+                    <div class="bg-gray-50/75 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                        <span class="text-xs font-extrabold bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded font-mono">
+                            CÂU HỎI TƯƠNG ĐƯƠNG #{{ eq_q.id }}
+                        </span>
+                        <a href="{% url 'question_detail' eq_q.id %}" target="_blank"
+                           class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1">
+                            Xem chi tiết
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                        </a>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <!-- Question Text Content -->
+                        <div>
+                            <div id="rendered-question-content-{{ eq_q.id }}" class="text-gray-900 font-semibold text-base leading-relaxed bg-indigo-50/10 border border-indigo-50 p-5 rounded-2xl question-body shadow-inner">
+                            </div>
+                        </div>
+
+                        <!-- Answer options with correct ones highlighted -->
+                        <div>
+                            <h4 class="text-xs font-extrabold text-gray-400 uppercase tracking-wider mb-3">Đáp án đúng</h4>
+                            
+                            <!-- Single Choice (Type 1) & Multiple Choice (Type 2) -->
+                            {% if eq_q.question_type == 1 or eq_q.question_type == 2 %}
+                                <div class="space-y-3">
+                                    {% for choice in eq_q.choices.all %}
+                                        <div class="flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-sm {% if choice.is_correct %}bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-100{% else %}bg-white border-gray-150 opacity-80{% endif %}">
+                                            <div class="flex items-center gap-3">
+                                                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold {% if choice.is_correct %}bg-emerald-500 text-white{% else %}bg-gray-100 text-gray-500{% endif %}">
+                                                    {{ forloop.counter }}
+                                                </span>
+                                                <span class="text-gray-800 text-sm font-semibold">{{ choice.content }}</span>
+                                            </div>
+                                            {% if choice.is_correct %}
+                                                <span class="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Đáp án đúng
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <!-- True/False (Type 3) -->
+                            {% if eq_q.question_type == 3 %}
+                                <div class="space-y-3">
+                                    {% for choice in eq_q.choices.all %}
+                                        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border transition-all shadow-sm bg-white border-gray-150 gap-3">
+                                            <div class="flex items-center gap-3">
+                                                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-500">
+                                                    {{ forloop.counter }}
+                                                </span>
+                                                <div class="text-gray-800 text-sm font-semibold">{{ choice.content }}</div>
+                                            </div>
+                                            <span class="px-3.5 py-1 rounded-lg text-xs font-extrabold shadow-sm {% if choice.is_correct %}bg-emerald-500 border border-emerald-600 text-white{% else %}bg-rose-500 border border-rose-600 text-white{% endif %}">
+                                                {{ choice.is_correct|yesno:'ĐÚNG,SAI' }}
+                                            </span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <!-- Short Answer (Type 4) -->
+                            {% if eq_q.question_type == 4 %}
+                                <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2">
+                                    <span class="text-xs font-bold text-indigo-700">Các phương án trả lời được chấp nhận:</span>
+                                    <div class="flex flex-col gap-2.5 pt-1">
+                                        {% for choice in eq_q.choices.all %}
+                                            <div class="flex flex-wrap items-center justify-between bg-white border border-indigo-200 p-3 rounded-xl shadow-sm gap-2">
+                                                <span class="px-2.5 py-1 rounded bg-indigo-50 font-mono text-indigo-700 text-sm font-bold">{{ choice.content }}</span>
+                                                <div class="flex gap-2">
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold {% if choice.is_correct %}bg-indigo-100 text-indigo-700{% else %}bg-gray-100 text-gray-400{% endif %}">
+                                                        Phân biệt hoa/thường: {{ choice.is_correct|yesno:'Có,Không' }}
+                                                    </span>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold {% if choice.position == 1 %}bg-indigo-100 text-indigo-700{% else %}bg-gray-100 text-gray-400{% endif %}">
+                                                        Bỏ qua khoảng trắng: {{ choice.position|yesno:'Có,Không' }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

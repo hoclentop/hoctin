@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block title %}Xem lại bài: {{ attempt.test.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mb-8 flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 font-outfit">{{ attempt.test.title }}</h1>
+            <p class="text-gray-500 mt-1">Lượt thi lúc: {{ attempt.start_time|date:"H:i d/m/Y" }} - Điểm: <span class="font-bold text-indigo-600">{{ attempt.total_score }}</span> / {{ attempt.test.total_possible_points }}</p>
+        </div>
+        <div class="flex items-center gap-3">
+            {% if attempt.total_score < attempt.test.total_possible_points %}
+                <a href="{% url 'take_test' attempt.test.id %}" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-sm shadow-indigo-100 flex items-center gap-1.5 font-outfit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"></path></svg>
+                    Làm lại
+                </a>
+            {% endif %}
+            <a href="{% url 'test_result' attempt.id %}" class="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors font-outfit">
+                Quay lại kết quả
+            </a>
+        </div>
+    </div>
+
+    <div class="space-y-12">
+        {% for p_data in parts %}
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                {% if parts|length > 1 or p_data.part.instruction %}
+                <div class="bg-gray-50 px-8 py-4 border-b border-gray-100">
+                    {% if parts|length > 1 %}
+                    <h2 class="text-xl font-bold text-gray-800 font-outfit">PHẦN {{ p_data.part.title_roman }}</h2>
+                    {% endif %}
+                    {% if p_data.part.instruction %}
+                    <div class="{% if parts|length > 1 %}mt-2{% endif %} text-sm text-gray-600 prose max-w-none markdown-content">{{ p_data.part.instruction }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="p-8 space-y-12">
+                    {% for q_data in p_data.questions %}
+                    <div class="question-block border-b border-gray-50 last:border-0 pb-12 last:pb-0">
+                        <div class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold mr-4">
+                                {% if parts|length > 1 %}{{ forloop.parentloop.counter }}.{% endif %}{{ forloop.counter }}
+                            </span>
+                            <div class="flex-1">
+                                <div class="text-lg text-gray-900 font-medium mb-6 prose max-w-none markdown-content">{{ q_data.tq.question.content }}</div>
+
+                                <!-- Choices Review -->
+                                <div class="space-y-3">
+                                    {% if q_data.tq.question.question_type == 4 %}
+                                        <div class="p-4 rounded-xl border {% if q_data.answer.score_earned > 0 %}border-green-200 bg-green-50{% else %}border-red-200 bg-red-50{% endif %}">
+                                            <p class="text-xs font-bold uppercase tracking-wider mb-1 {% if q_data.answer.score_earned > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                                Câu trả lời của bạn:
+                                            </p>
+                                            <p class="text-lg font-medium">{{ q_data.answer.short_answer|default:"(Để trống)" }}</p>
+                                        </div>
+                                        <!-- Đáp án đúng -->
+                                        <div class="mt-3 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-3">
+                                            <span class="text-xs font-bold uppercase bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-outfit flex-shrink-0">Đáp án đúng</span>
+                                            <span class="text-emerald-950 font-medium font-mono text-sm leading-relaxed">
+                                                {% for cc in q_data.correct_choices %}
+                                                    {{ cc.content }}{% if not forloop.last %} | {% endif %}
+                                                {% empty %}
+                                                    <span class="text-rose-500 italic font-sans">(Chưa thiết lập đáp án đúng)</span>
+                                                {% endfor %}
+                                            </span>
+                                        </div>
+                                    {% elif q_data.tq.question.question_type == 3 %}
+                                        <!-- Đúng/Sai 4 ý (Loại 3) Review -->
+                                        <div class="grid grid-cols-1 gap-3">
+                                            {% for choice in q_data.choices %}
+                                            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all gap-4
+                                                {% if q_data.answer %}
+                                                    {% if choice in q_data.answer.selected_choices.all and choice.is_correct or choice not in q_data.answer.selected_choices.all and not choice.is_correct %}
+                                                        border-green-200 bg-green-50/40
+                                                    {% else %}
+                                                        border-red-200 bg-red-50/40
+                                                    {% endif %}
+                                                {% else %}
+                                                    border-gray-100
+                                                {% endif %}">
+                                                <div class="text-sm font-medium text-slate-800 flex-1 leading-relaxed markdown-content">{{ choice.content }}</div>
+                                                <div class="flex items-center gap-3 flex-shrink-0 text-xs font-bold font-outfit">
+                                                    <!-- Kết quả của học sinh -->
+                                                    <span class="px-3 py-1.5 rounded-lg flex items-center gap-1 border
+                                                        {% if choice in q_data.answer.selected_choices.all %}
+                                                            bg-emerald-50 border-emerald-200 text-emerald-700
+                                                        {% else %}
+                                                            bg-rose-50 border-rose-200 text-rose-700
+                                                        {% endif %}">
+                                                        Lựa chọn: {% if choice in q_data.answer.selected_choices.all %}Đúng{% else %}Sai{% endif %}
+                                                    </span>
+
+                                                    <!-- Kết quả đúng của đáp án -->
+                                                    <span class="px-3 py-1.5 rounded-lg border bg-slate-100 border-slate-200 text-slate-700">
+                                                        Đáp án: {% if choice.is_correct %}Đúng{% else %}Sai{% endif %}
+                                                    </span>
+
+                                                    <!-- Biểu tượng Đúng/Sai chung cuộc -->
+                                                    <div class="flex-shrink-0">
+                                                        {% if choice in q_data.answer.selected_choices.all and choice.is_correct or choice not in q_data.answer.selected_choices.all and not choice.is_correct %}
+                                                            <span class="text-green-600 bg-green-100 p-1.5 rounded-full block">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="text-rose-600 bg-rose-100 p-1.5 rounded-full block">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        {% for choice in q_data.choices %}
+                                        <div class="flex items-center p-4 rounded-xl border transition-all
+                                            {% if choice in q_data.answer.selected_choices.all %}
+                                                {% if choice.is_correct %} border-green-500 bg-green-50 {% else %} border-red-500 bg-red-50 {% endif %}
+                                            {% elif choice.is_correct %}
+                                                border-green-500 border-dashed bg-green-50/50
+                                            {% else %}
+                                                border-gray-100
+                                            {% endif %}">
+                                            
+                                            <div class="flex-shrink-0">
+                                                {% if choice in q_data.answer.selected_choices.all %}
+                                                    {% if choice.is_correct %}
+                                                        <svg class="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                                    {% else %}
+                                                        <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                                                    {% endif %}
+                                                {% elif choice.is_correct %}
+                                                    <svg class="w-6 h-6 text-green-500 opacity-50" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                                {% else %}
+                                                    <div class="w-6 h-6 rounded-full border-2 border-gray-200"></div>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <span class="ml-4 text-gray-700 markdown-content">{{ choice.content }}</span>
+                                            
+                                            {% if choice.is_correct and choice not in q_data.answer.selected_choices.all %}
+                                                <span class="ml-auto text-xs font-bold text-green-600 uppercase tracking-tighter italic">Đáp án đúng</span>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Load Marked and render markdown dynamically -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.markdown-content').forEach(el => {
+            const rawText = el.textContent || el.innerText || '';
+            el.innerHTML = marked.parse(rawText.trim());
+        });
+        if (window.renderMathInElement) {
+            window.renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError: false
+            });
+        }
+    });
+</script>
+{% endblock %}

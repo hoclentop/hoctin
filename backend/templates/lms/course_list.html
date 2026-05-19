@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Danh sách Khóa học - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8 pb-4 border-b border-gray-100">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900 font-outfit">Tất cả Khóa học</h1>
+        <p class="text-gray-600 mt-1">Nâng cao kỹ năng lập trình với các bài học chuyên sâu.</p>
+    </div>
+    {% if request.user.is_superuser or request.user.profile.can_create_courses %}
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'create_course' %}" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-colors flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Tạo khóa học mới
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="grid grid-cols-1 gap-y-10 sm:grid-cols-2 gap-x-6 lg:grid-cols-3 xl:gap-x-8">
+    {% for course in courses %}
+    <div class="group relative flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+        <div class="aspect-w-16 aspect-h-9 bg-gray-200 group-hover:opacity-75 sm:aspect-none sm:h-48">
+            {% if course.thumbnail %}
+                <img src="{{ course.thumbnail.url }}" alt="{{ course.title }}" class="w-full h-full object-center object-cover">
+            {% else %}
+                <div class="w-full h-full flex items-center justify-center bg-indigo-50 text-indigo-200">
+                    <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                </div>
+            {% endif %}
+        </div>
+        <div class="flex-1 p-6 flex flex-col">
+            <h3 class="text-lg font-bold text-gray-900 hover:text-indigo-600 transition-colors">
+                <a href="{% url 'course_detail' course.id %}">
+                    {{ course.title }}
+                </a>
+            </h3>
+            <p class="mt-2 text-sm text-gray-500 line-clamp-2">{{ course.description }}</p>
+            <div class="mt-4 flex items-center justify-between">
+                <span class="text-xl font-bold {% if course.price == 0 %}text-green-600{% else %}text-indigo-600{% endif %}">
+                    {% if course.price == 0 %}Miễn phí{% else %}{{ course.price }}đ{% endif %}
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-800">
+                    {{ course.get_learning_mode_display }}
+                </span>
+            </div>
+            
+            {% if request.user.is_superuser or request.user.profile.can_create_courses %}
+            <div class="mt-6 pt-4 border-t border-gray-100 flex items-center gap-3 text-xs font-bold">
+                <a href="{% url 'edit_course' course.id %}" class="text-indigo-600 hover:text-indigo-900">Sửa</a>
+                <span class="text-gray-200">|</span>
+                <a href="{% url 'manage_course_structure' course.id %}" class="text-indigo-600 hover:text-indigo-900">Quản lý bài học</a>
+                <span class="text-gray-200">|</span>
+                <form method="POST" action="{% url 'delete_course' course.id %}" onsubmit="return confirm('Bạn có chắc chắn muốn xóa khóa học này không?');" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="text-red-600 hover:text-red-900">Xóa</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full py-12 text-center">
+        <p class="text-gray-500">Chưa có khóa học nào.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+
+{% block title %}Bảng phân quyền Admin - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 font-outfit" x-data="{ search: '{{ q }}' }">
+    
+    <!-- Top Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-10 space-y-4 md:space-y-0">
+        <div>
+            <h1 class="text-3xl font-extrabold bg-gradient-to-r from-slate-800 to-indigo-900 bg-clip-text text-transparent flex items-center">
+                <svg class="w-8 h-8 mr-3 text-indigo-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+                Quản lý Cấp phép Giáo viên & Staff
+            </h1>
+            <p class="text-slate-400 text-sm font-light mt-1">Cấp quyền tạo câu hỏi, đề thi và khóa học/bài học chi tiết cho từng giáo viên (Staff).</p>
+        </div>
+    </div>
+
+    <!-- Stat Dashboard Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <!-- Card 1 -->
+        <div class="bg-gradient-to-br from-indigo-50/50 to-white p-5 rounded-2xl border border-indigo-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Tổng người dùng</div>
+                <div class="text-xl font-extrabold text-indigo-950 mt-0.5">{{ total_users }}</div>
+            </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="bg-gradient-to-br from-amber-50/50 to-white p-5 rounded-2xl border border-amber-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Tổng Staff</div>
+                <div class="text-xl font-extrabold text-amber-950 mt-0.5">{{ total_staff }}</div>
+            </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="bg-gradient-to-br from-emerald-50/50 to-white p-5 rounded-2xl border border-emerald-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Quyền Tạo câu hỏi</div>
+                <div class="text-xl font-extrabold text-emerald-950 mt-0.5">{{ question_creators }}</div>
+            </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="bg-gradient-to-br from-blue-50/50 to-white p-5 rounded-2xl border border-blue-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Quyền Tạo đề thi</div>
+                <div class="text-xl font-extrabold text-blue-950 mt-0.5">{{ exam_creators }}</div>
+            </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="bg-gradient-to-br from-violet-50/50 to-white p-5 rounded-2xl border border-violet-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-violet-50 text-violet-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-violet-600 font-bold uppercase tracking-wider">Quyền Tạo khóa học</div>
+                <div class="text-xl font-extrabold text-violet-950 mt-0.5">{{ course_creators }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Section -->
+    <div class="mb-6 flex items-center justify-between">
+        <form method="GET" class="w-full max-w-md relative flex items-center">
+            <input type="text" 
+                   name="q" 
+                   placeholder="Tìm kiếm thành viên theo username hoặc email..." 
+                   x-model="search"
+                   class="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-md shadow-inner text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-light">
+            <span class="absolute left-4 text-slate-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </span>
+            <button type="submit" class="hidden">Tìm kiếm</button>
+        </form>
+        
+        {% if q %}
+            <a href="{% url 'admin_dashboard' %}" class="ml-4 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors flex items-center">
+                Xóa bộ lọc
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </a>
+        {% endif %}
+    </div>
+
+    <!-- Users Table Container -->
+    <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100">
+                <thead class="bg-slate-50/70">
+                    <tr>
+                        <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Thành viên</th>
+                        <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Vai trò</th>
+                        <th class="px-8 py-5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">1. Quyền Tạo câu hỏi</th>
+                        <th class="px-8 py-5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">2. Quyền Tạo đề thi</th>
+                        <th class="px-8 py-5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">3. Quyền Tạo khóa & bài học</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    {% for u in users %}
+                        <tr class="hover:bg-slate-50/50 transition-colors duration-200">
+                            <!-- User info -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm border border-indigo-100 uppercase shadow-inner">
+                                        {{ u.username|slice:":2" }}
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-extrabold text-slate-800 font-outfit flex items-center">
+                                            {{ u.username }}
+                                            {% if u.is_superuser %}
+                                                <span class="ml-2 px-2 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-bold uppercase rounded-md border border-rose-100">Tối cao</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-xs text-slate-400 font-light mt-0.5">{{ u.email|default:"Chưa cập nhật email" }}</div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <!-- Staff Status -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                {% if u.is_superuser %}
+                                    <span class="px-3.5 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white text-[11px] font-black uppercase rounded-xl shadow-sm border border-rose-400/20 tracking-wider">
+                                        SUPERUSER
+                                    </span>
+                                {% else %}
+                                    <a href="{% url 'toggle_staff_permission' u.id 'staff' %}" 
+                                       class="px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center w-fit border
+                                              {% if u.is_staff %}
+                                                  bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-600/30 hover:scale-105
+                                              {% else %}
+                                                  bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100/80 hover:text-slate-800
+                                              {% endif %}"
+                                       title="Bấm để thay đổi vai trò thành viên">
+                                        <span class="w-2 h-2 rounded-full mr-2 {% if u.is_staff %}bg-white animate-pulse{% else %}bg-slate-400{% endif %}"></span>
+                                        {% if u.is_staff %}Nhân viên (Staff){% else %}Học viên (Student){% endif %}
+                                    </a>
+                                {% endif %}
+                            </td>
+
+                            <!-- 1. Question Creator Permission -->
+                            <td class="px-8 py-5 whitespace-nowrap text-center">
+                                {% if u.is_superuser %}
+                                    <span class="text-xs font-bold text-slate-400 select-none">Mặc định có quyền</span>
+                                {% else %}
+                                    {% if u.is_staff %}
+                                        <a href="{% url 'toggle_staff_permission' u.id 'questions' %}" 
+                                           class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm w-32
+                                                  {% if u.profile.can_create_questions %}
+                                                      bg-emerald-500 text-white border-emerald-600/20 hover:bg-emerald-600 hover:scale-105
+                                                  {% else %}
+                                                      bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-700
+                                                  {% endif %}">
+                                            {% if u.profile.can_create_questions %}
+                                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                                </svg> Cho phép
+                                            {% else %}
+                                                Bị chặn
+                                            {% endif %}
+                                        </a>
+                                    {% else %}
+                                        <!-- Locked State for non-staff -->
+                                        <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed select-none w-32">
+                                            <svg class="w-3.5 h-3.5 mr-1 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                            </svg> Yêu cầu Staff
+                                        </span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+
+                            <!-- 2. Test Creator Permission -->
+                            <td class="px-8 py-5 whitespace-nowrap text-center">
+                                {% if u.is_superuser %}
+                                    <span class="text-xs font-bold text-slate-400 select-none">Mặc định có quyền</span>
+                                {% else %}
+                                    {% if u.is_staff %}
+                                        <a href="{% url 'toggle_staff_permission' u.id 'exams' %}" 
+                                           class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm w-32
+                                                  {% if u.profile.can_create_exams %}
+                                                      bg-blue-500 text-white border-blue-600/20 hover:bg-blue-600 hover:scale-105
+                                                  {% else %}
+                                                      bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-700
+                                                  {% endif %}">
+                                            {% if u.profile.can_create_exams %}
+                                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                                </svg> Cho phép
+                                            {% else %}
+                                                Bị chặn
+                                            {% endif %}
+                                        </a>
+                                    {% else %}
+                                        <!-- Locked State -->
+                                        <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed select-none w-32">
+                                            <svg class="w-3.5 h-3.5 mr-1 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                            </svg> Yêu cầu Staff
+                                        </span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+
+                            <!-- 3. Course Creator Permission -->
+                            <td class="px-8 py-5 whitespace-nowrap text-center">
+                                {% if u.is_superuser %}
+                                    <span class="text-xs font-bold text-slate-400 select-none">Mặc định có quyền</span>
+                                {% else %}
+                                    {% if u.is_staff %}
+                                        <a href="{% url 'toggle_staff_permission' u.id 'courses' %}" 
+                                           class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm w-32
+                                                  {% if u.profile.can_create_courses %}
+                                                      bg-violet-500 text-white border-violet-600/20 hover:bg-violet-600 hover:scale-105
+                                                  {% else %}
+                                                      bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-700
+                                                  {% endif %}">
+                                            {% if u.profile.can_create_courses %}
+                                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                                </svg> Cho phép
+                                            {% else %}
+                                                Bị chặn
+                                            {% endif %}
+                                        </a>
+                                    {% else %}
+                                        <!-- Locked State -->
+                                        <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed select-none w-32">
+                                            <svg class="w-3.5 h-3.5 mr-1 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                            </svg> Yêu cầu Staff
+                                        </span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-8 py-20 text-center">
+                                <div class="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-700 font-outfit">Không tìm thấy thành viên phù hợp</h3>
+                                <p class="text-slate-400 text-xs font-light max-w-xs mx-auto mt-1">Vui lòng kiểm tra lại từ khóa tìm kiếm hoặc thử với từ khóa khác.</p>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

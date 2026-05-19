@@ -1,0 +1,602 @@
+{% extends 'base.html' %}
+
+{% block title %}Chỉnh sửa Câu hỏi #{{ question.id }} - HocTin LMS{% endblock %}
+
+{% block extra_head %}
+<!-- Marked for Markdown Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(224, 231, 255, 0.8);
+    }
+    .preview-content p { margin-bottom: 0.75rem; }
+    .preview-content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .preview-content ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .preview-content code { background-color: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Safe Preloaded Data Injection -->
+<script id="preloaded-data" type="application/json">
+{{ preloaded_json|safe }}
+</script>
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+     x-data="(() => {
+        const data = JSON.parse(document.getElementById('preloaded-data').textContent);
+        return {
+            question_type: data.question_type,
+            content: data.content,
+            group_id: data.group_id,
+            equivalent_group_id: data.equivalent_group_id,
+            is_public: data.is_public,
+            
+            // Type 1 data
+            choices1: data.choices1,
+            correct_choice_1: data.correct_choice_1,
+
+            // Type 2 data
+            choices2: data.choices2,
+
+            // Type 3 data
+            choices3: data.choices3,
+
+            // Type 4 data
+            choices4: data.choices4,
+
+            addChoice1() { this.choices1.push({ text: '', is_correct: false }); },
+            removeChoice1(idx) {
+                if (this.choices1.length > 2) {
+                    this.choices1.splice(idx, 1);
+                    if (this.correct_choice_1 >= this.choices1.length) {
+                        this.correct_choice_1 = 0;
+                    }
+                }
+            },
+
+            addChoice2() { this.choices2.push({ text: '', is_correct: false }); },
+            removeChoice2(idx) {
+                if (this.choices2.length > 2) {
+                    this.choices2.splice(idx, 1);
+                }
+            },
+
+            addChoice4() { this.choices4.push({ text: '', is_case_sensitive: false, ignore_spaces: true }); },
+            removeChoice4(idx) {
+                if (this.choices4.length > 1) {
+                    this.choices4.splice(idx, 1);
+                }
+            },
+
+            // Render Markdown & KaTeX
+            renderPreview() {
+                this.$nextTick(() => {
+                    const previewEl = document.getElementById('rendered-content');
+                    if (previewEl) {
+                        previewEl.innerHTML = marked.parse(this.content);
+                        if (window.renderMathInElement) {
+                            window.renderMathInElement(previewEl, {
+                                delimiters: [
+                                    {left: '$$', right: '$$', display: true},
+                                    {left: '$', right: '$', display: false}
+                                ],
+                                throwOnError: false
+                            });
+                        }
+                    }
+
+                    // Render choices as well
+                    const choicesContainer = document.getElementById('rendered-choices');
+                    if (choicesContainer && window.renderMathInElement) {
+                        window.renderMathInElement(choicesContainer, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false}
+                            ],
+                            throwOnError: false
+                        });
+                    }
+                });
+            }
+        };
+     })()"
+     x-init="
+        renderPreview();
+        $watch('content', () => renderPreview());
+        $watch('question_type', () => renderPreview());
+        $watch('choices1', () => renderPreview(), {deep: true});
+        $watch('choices2', () => renderPreview(), {deep: true});
+        $watch('choices3', () => renderPreview(), {deep: true});
+        $watch('choices4', () => renderPreview(), {deep: true});
+     ">
+
+    <!-- Header Section -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-3xl font-extrabold text-gray-900 font-outfit sm:truncate flex items-center gap-3">
+                <span class="p-2 rounded-lg bg-indigo-100 text-indigo-600">
+                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                </span>
+                Chỉnh sửa Câu hỏi #{{ question.id }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500">Chỉnh sửa câu hỏi do bạn tạo ra với giao diện soạn thảo Frontend cao cấp.</p>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <form method="POST" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {% csrf_token %}
+        <input type="hidden" name="question_type" :value="question_type">
+
+        <!-- Left Column: Form Configuration (7 cols) -->
+        <div class="lg:col-span-7 space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
+                <!-- Group and Public Switch -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="group_id" class="block text-sm font-semibold text-gray-700 mb-2">Nhóm câu hỏi</label>
+                        <select id="group_id" name="group_id" x-model="group_id"
+                                class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3">
+                            <option value="">-- Chọn nhóm câu hỏi --</option>
+                            {% for group in groups %}
+                                <option value="{{ group.id }}">{{ group.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="equivalent_group_id" class="block text-sm font-semibold text-gray-700 mb-2">Nhóm tương đương</label>
+                        <select id="equivalent_group_id" name="equivalent_group_id" x-model="equivalent_group_id"
+                                class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3">
+                            <option value="">-- Không phân nhóm tương đương --</option>
+                            {% for eq_group in equivalent_groups %}
+                                <option value="{{ eq_group.id }}">{{ eq_group.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="flex items-center justify-between bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-semibold text-indigo-900">Công khai câu hỏi</span>
+                            <span class="text-xs text-indigo-600">Cho phép học sinh tự tìm ôn luyện</span>
+                        </div>
+                        <button type="button" @click="is_public = !is_public"
+                                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                                :class="is_public ? 'bg-indigo-600' : 'bg-gray-200'">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                                  :class="is_public ? 'translate-x-5' : 'translate-x-0'"></span>
+                        </button>
+                        <input type="hidden" name="is_public" :value="is_public ? 'on' : 'off'">
+                    </div>
+                </div>
+
+                <!-- Question Type Selection Cards -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Hình thức câu hỏi</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Single Choice (1) -->
+                        <div @click="question_type = 1"
+                             class="cursor-pointer border-2 rounded-xl p-4 transition-all hover:shadow-md flex items-start gap-3"
+                             :class="question_type === 1 ? 'border-indigo-600 bg-indigo-50/20' : 'border-gray-200 bg-white'">
+                            <span class="p-2 rounded-lg" :class="question_type === 1 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900">Trắc nghiệm 1 lựa chọn</h4>
+                                <p class="text-xs text-gray-500 mt-0.5">Một đáp án đúng duy nhất.</p>
+                            </div>
+                        </div>
+
+                        <!-- Multiple Choice (2) -->
+                        <div @click="question_type = 2"
+                             class="cursor-pointer border-2 rounded-xl p-4 transition-all hover:shadow-md flex items-start gap-3"
+                             :class="question_type === 2 ? 'border-indigo-600 bg-indigo-50/20' : 'border-gray-200 bg-white'">
+                            <span class="p-2 rounded-lg" :class="question_type === 2 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900">Trắc nghiệm nhiều lựa chọn</h4>
+                                <p class="text-xs text-gray-500 mt-0.5">Chọn nhiều câu trả lời đúng.</p>
+                            </div>
+                        </div>
+
+                        <!-- True/False (3) -->
+                        <div @click="question_type = 3"
+                             class="cursor-pointer border-2 rounded-xl p-4 transition-all hover:shadow-md flex items-start gap-3"
+                             :class="question_type === 3 ? 'border-indigo-600 bg-indigo-50/20' : 'border-gray-200 bg-white'">
+                            <span class="p-2 rounded-lg" :class="question_type === 3 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900">Đúng/Sai 4 ý độc lập</h4>
+                                <p class="text-xs text-gray-500 mt-0.5">Đánh giá 4 khẳng định Đúng hay Sai.</p>
+                            </div>
+                        </div>
+
+                        <!-- Short Answer (4) -->
+                        <div @click="question_type = 4"
+                             class="cursor-pointer border-2 rounded-xl p-4 transition-all hover:shadow-md flex items-start gap-3"
+                             :class="question_type === 4 ? 'border-indigo-600 bg-indigo-50/20' : 'border-gray-200 bg-white'">
+                            <span class="p-2 rounded-lg" :class="question_type === 4 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900">Trả lời ngắn</h4>
+                                <p class="text-xs text-gray-500 mt-0.5">Học sinh tự điền đáp án bằng văn bản.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Question Content TextArea -->
+                <div>
+                    <label for="id_content" class="block text-sm font-semibold text-gray-700 mb-2">Nội dung câu hỏi</label>
+                    <textarea id="id_content" name="content" x-model="content" rows="6" required
+                              class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono py-3"
+                              placeholder="Nhập nội dung câu hỏi..."></textarea>
+                    <div class="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                        <svg class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Mẹo: Bạn có thể viết công thức Toán học bằng LaTeX như <code>$x^2$</code> hoặc Markdown.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Answers Config Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-bold text-gray-900 font-outfit mb-4 flex items-center gap-2">
+                    <svg class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Thiết lập đáp án chính xác
+                </h3>
+
+                <!-- SECTION 1: Trắc nghiệm 1 lựa chọn -->
+                <div x-show="question_type === 1" class="space-y-4">
+                    <template x-for="(choice, idx) in choices1" :key="idx">
+                        <div class="flex items-center gap-3">
+                            <!-- Correct choice radio button -->
+                            <input type="radio" name="correct_choice_1" :value="idx"
+                                   x-model="correct_choice_1"
+                                   class="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                            <!-- Choice input content -->
+                            <input type="text" name="choice_text_1[]" x-model="choice.text"
+                                   class="flex-1 rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                   :placeholder="'Lựa chọn ' + String.fromCharCode(65 + idx) + '...'">
+                            <!-- Remove button -->
+                            <button type="button" @click="removeChoice1(idx)" x-show="choices1.length > 2"
+                                    class="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                    <button type="button" @click="addChoice1()"
+                            class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                        + Thêm lựa chọn
+                    </button>
+                </div>
+
+                <!-- SECTION 2: Trắc nghiệm nhiều lựa chọn -->
+                <div x-show="question_type === 2" class="space-y-4">
+                    <template x-for="(choice, idx) in choices2" :key="idx">
+                        <div class="flex items-center gap-3">
+                            <!-- Correct choice checkbox -->
+                            <input type="checkbox" name="correct_choices_2[]" :value="idx"
+                                   x-model="choice.is_correct"
+                                   class="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                            <!-- Choice input content -->
+                            <input type="text" name="choice_text_2[]" x-model="choice.text"
+                                   class="flex-1 rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                   :placeholder="'Lựa chọn ' + (idx + 1) + '...'">
+                            <!-- Remove button -->
+                            <button type="button" @click="removeChoice2(idx)" x-show="choices2.length > 2"
+                                    class="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                    <button type="button" @click="addChoice2()"
+                            class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                        + Thêm lựa chọn
+                    </button>
+                </div>
+
+                <!-- SECTION 3: Đúng/Sai 4 ý -->
+                <div x-show="question_type === 3" class="space-y-5">
+                    <template x-for="(choice, idx) in choices3" :key="idx">
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-indigo-600 font-outfit" x-text="'Ý ' + (idx + 1)"></span>
+                                <div class="flex items-center gap-2 bg-white rounded-lg p-0.5 border border-gray-300">
+                                    <!-- True Button -->
+                                    <button type="button" @click="choice.is_correct = true"
+                                            class="px-4 py-1.5 rounded-md text-xs font-bold transition-all"
+                                            :class="choice.is_correct ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'">
+                                        ĐÚNG
+                                    </button>
+                                    <!-- False Button -->
+                                    <button type="button" @click="choice.is_correct = false"
+                                            class="px-4 py-1.5 rounded-md text-xs font-bold transition-all"
+                                            :class="!choice.is_correct ? 'bg-rose-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'">
+                                        SAI
+                                    </button>
+                                </div>
+                                <input type="hidden" :name="'tf_choice_3_' + idx" :value="choice.is_correct ? 'true' : 'false'">
+                            </div>
+                            <input type="text" name="choice_text_3[]" x-model="choice.text"
+                                   class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                                   :placeholder="'Nhập khẳng định của ý ' + (idx + 1) + '...'">
+                        </div>
+                    </template>
+                </div>
+
+                <!-- SECTION 4: Trả lời ngắn -->
+                <div x-show="question_type === 4" class="space-y-6">
+                    <!-- Answers variations list -->
+                    <div class="space-y-4">
+                        <label class="block text-sm font-semibold text-gray-700">Danh sách đáp án chấp nhận là Đúng (Mỗi đáp án có luật so khớp riêng)</label>
+                        <template x-for="(choice, idx) in choices4" :key="idx">
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-600 font-outfit" x-text="'Đáp án ' + (idx + 1)"></span>
+                                    
+                                    <!-- Match Rule Buttons -->
+                                    <div class="flex items-center gap-2">
+                                        <!-- Case Sensitive Button -->
+                                        <button type="button" @click="choice.is_case_sensitive = !choice.is_case_sensitive"
+                                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1"
+                                                :class="choice.is_case_sensitive ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-400 hover:bg-gray-50'">
+                                            <span class="font-mono">Aa</span>
+                                            <span>Phân biệt hoa/thường</span>
+                                        </button>
+                                        <input type="hidden" name="is_case_sensitive_4[]" :value="choice.is_case_sensitive ? 'on' : 'off'">
+                                        
+                                        <!-- Ignore Spaces Button -->
+                                        <button type="button" @click="choice.ignore_spaces = !choice.ignore_spaces"
+                                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1"
+                                                :class="choice.ignore_spaces ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-400 hover:bg-gray-50'">
+                                            <span class="font-mono">␣</span>
+                                            <span>Bỏ qua dấu cách</span>
+                                        </button>
+                                        <input type="hidden" name="ignore_spaces_4[]" :value="choice.ignore_spaces ? 'on' : 'off'">
+
+                                        <!-- Remove Button -->
+                                        <button type="button" @click="removeChoice4(idx)" x-show="choices4.length > 1"
+                                                class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all ml-2">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <input type="text" name="choice_text_4[]" x-model="choice.text"
+                                       class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                                       placeholder="Nhập giá trị đáp án chính xác...">
+                            </div>
+                        </template>
+                        <button type="button" @click="addChoice4()"
+                                class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                            + Thêm đáp án đồng nghĩa
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions Buttons -->
+            <div class="flex flex-wrap items-center justify-end gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                <a href="/admin/lms/question/"
+                   class="px-6 py-3 rounded-xl border border-gray-300 text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                    Hủy bỏ
+                </a>
+                
+                <a href="{% url 'preview_question' question.id %}" target="_blank"
+                   class="px-6 py-3 rounded-xl border border-amber-300 text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all flex items-center gap-1.5 shadow-sm">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Xem thử Câu hỏi
+                </a>
+
+                <button type="submit" name="action" value="save_and_continue"
+                        class="px-6 py-3 rounded-xl border border-indigo-600 text-sm font-bold text-indigo-600 bg-white hover:bg-indigo-50 transition-all">
+                    Lưu & Tiếp tục soạn
+                </button>
+                <button type="submit" name="action" value="save"
+                        class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-sm font-bold text-white shadow-md transition-all">
+                    Lưu & Xem thử
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Column: Student View & Live Preview (5 cols) -->
+        <div class="lg:col-span-5">
+            <div class="sticky top-6 space-y-6">
+                <!-- Live Preview Header -->
+                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-2xl p-4 shadow-sm">
+                    <h3 class="font-outfit font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+                        <span class="animate-pulse inline-block h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
+                        BẢN XEM TRƯỚC HỌC SINH (Student View)
+                    </h3>
+                    <p class="text-xs text-indigo-100 mt-1">Nội dung sẽ tự động render công thức LaTeX và Markdown ngay khi soạn thảo.</p>
+                </div>
+
+                <!-- Preview Area Glass Card -->
+                <div class="glass-card rounded-3xl p-6 shadow-xl space-y-6">
+                    <!-- Question Content Rendered -->
+                    <div class="space-y-2">
+                        <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider"
+                              :class="is_public ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-700'"
+                              x-text="is_public ? 'Câu hỏi công khai' : 'Câu hỏi nội bộ'"></span>
+                        <div id="rendered-content" class="preview-content text-gray-800 text-base font-medium leading-relaxed mt-3">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Choices Container Rendered -->
+                    <div id="rendered-choices" class="pt-4 border-t border-indigo-100/50">
+                        
+                        <!-- Type 1 Preview -->
+                        <div x-show="question_type === 1" class="space-y-3">
+                            <template x-for="(choice, idx) in choices1" :key="idx">
+                                <div class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white/50 transition-all hover:bg-white">
+                                    <span class="w-6 h-6 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center text-xs font-bold text-gray-500"
+                                          x-text="String.fromCharCode(65 + idx)"></span>
+                                    <div class="flex-1 text-gray-700 text-sm font-medium" x-html="choice.text || '...' "></div>
+                                    <span x-show="correct_choice_1 === idx" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Đáp án</span>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Type 2 Preview -->
+                        <div x-show="question_type === 2" class="space-y-3">
+                            <template x-for="(choice, idx) in choices2" :key="idx">
+                                <div class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white/50 transition-all hover:bg-white">
+                                    <span class="w-6 h-6 rounded-md bg-gray-100 border border-gray-300 flex items-center justify-center text-xs font-bold text-gray-500"
+                                          x-text="idx + 1"></span>
+                                    <div class="flex-1 text-gray-700 text-sm font-medium" x-html="choice.text || '...' "></div>
+                                    <span x-show="choice.is_correct" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Đúng</span>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Type 3 Preview -->
+                        <div x-show="question_type === 3" class="space-y-3">
+                            <template x-for="(choice, idx) in choices3" :key="idx">
+                                <div class="flex flex-col gap-2 p-3.5 rounded-xl border border-gray-200 bg-white/50">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-bold text-gray-400" x-text="'Mệnh đề ' + (idx + 1)"></span>
+                                        <span class="text-xs font-bold px-2.5 py-0.5 rounded-md shadow-sm"
+                                              :class="choice.is_correct ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'"
+                                              x-text="choice.is_correct ? 'ĐÚNG' : 'SAI'"></span>
+                                    </div>
+                                    <div class="text-gray-700 text-sm font-medium mt-1" x-html="choice.text || '...' "></div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Type 4 Preview -->
+                        <div x-show="question_type === 4" class="space-y-4">
+                            <div class="space-y-1.5">
+                                <span class="text-xs font-bold text-gray-400">Trả lời của học sinh:</span>
+                                <input type="text" placeholder="Học sinh nhập câu trả lời tại đây..." disabled
+                                       class="w-full rounded-xl border-gray-300 bg-gray-100 text-gray-400 text-sm py-2.5">
+                            </div>
+
+                            <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-2">
+                                <span class="text-xs font-bold text-indigo-700">Các phương án trả lời được chấp nhận:</span>
+                                <div class="flex flex-col gap-2 pt-1">
+                                    <template x-for="(choice, idx) in choices4" :key="idx">
+                                        <div class="flex items-center justify-between bg-white border border-indigo-200 p-2 px-3 rounded-lg shadow-sm">
+                                            <span class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-600 font-mono" x-text="choice.text || '...'"></span>
+                                            <div class="flex gap-1.5">
+                                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                                      :class="choice.is_case_sensitive ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400'"
+                                                      x-text="choice.is_case_sensitive ? 'Phân biệt hoa/thường' : 'Không phân biệt'"></span>
+                                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                                      :class="choice.ignore_spaces ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400'"
+                                                      x-text="choice.ignore_spaces ? 'Bỏ cách' : 'Giữ cách'"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const textarea = document.getElementById('id_content');
+    if (!textarea) return;
+
+    textarea.addEventListener('paste', async (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (const item of items) {
+            if (item.type.indexOf('image') === 0) {
+                e.preventDefault(); // Ngăn hành vi dán mặc định của ảnh
+                const file = item.getAsFile();
+                
+                // Tạo loading placeholder tại vị trí con trỏ trong textarea
+                const placeholder = "![Đang tải ảnh...]()";
+                const startPos = textarea.selectionStart;
+                const endPos = textarea.selectionEnd;
+                const originalValue = textarea.value;
+                
+                // Chèn placeholder
+                textarea.value = originalValue.substring(0, startPos) + placeholder + originalValue.substring(endPos);
+                
+                // Đồng bộ hóa với Alpine.js
+                textarea.dispatchEvent(new Event('input'));
+                
+                // Chuẩn bị dữ liệu tải lên
+                const formData = new FormData();
+                const ext = file.name ? file.name.split('.').pop() : 'png';
+                const newName = `pasted_img_${Date.now()}.${ext}`;
+                formData.append('image', file, newName);
+                
+                try {
+                    const response = await fetch('/upload-image/', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.url) {
+                            // Thay thế placeholder bằng link ảnh thực tế
+                            const markdownImage = `![ảnh](${result.url})`;
+                            textarea.value = textarea.value.replace(placeholder, markdownImage);
+                            
+                            // Di chuyển con trỏ chuột ra sau bức ảnh mới chèn
+                            const newCursorPos = startPos + markdownImage.length;
+                            textarea.setSelectionRange(newCursorPos, newCursorPos);
+                            
+                            // Thông báo cho Alpine.js để cập nhật live preview
+                            textarea.dispatchEvent(new Event('input'));
+                        } else {
+                            throw new Error('Upload failed');
+                        }
+                    } else {
+                        throw new Error('Server error');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Có lỗi xảy ra khi tải ảnh lên máy chủ. Vui lòng thử lại.');
+                    // Xóa placeholder nếu lỗi
+                    textarea.value = textarea.value.replace(placeholder, '');
+                    textarea.dispatchEvent(new Event('input'));
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

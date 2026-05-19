@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Trình soạn thảo Markdown - HocTin LMS{% endblock %}
+
+{% block extra_head %}
+<!-- EasyMDE CSS -->
+<link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
+<script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
+<style>
+    .editor-container .CodeMirror {
+        border-radius: 0 0 12px 12px;
+        border-color: #e5e7eb;
+        font-family: 'Inter', sans-serif;
+    }
+    .editor-container .editor-toolbar {
+        border-radius: 12px 12px 0 0;
+        border-color: #e5e7eb;
+        background: #f9fafb;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 font-outfit">Trình soạn thảo thông minh</h1>
+        <p class="text-gray-600">Thử nghiệm tính năng Paste ảnh trực tiếp vào nội dung.</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <div class="editor-container">
+            <textarea id="markdown-editor"></textarea>
+        </div>
+        
+        <div class="mt-6 flex justify-between items-center">
+            <p class="text-xs text-gray-500">Mẹo: Copy một ảnh bất kỳ và nhấn Ctrl+V vào ô soạn thảo để tự động upload.</p>
+            <button class="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
+                Lưu nội dung
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const easyMDE = new EasyMDE({
+        element: document.getElementById('markdown-editor'),
+        placeholder: "Nhập nội dung bài học hoặc câu hỏi tại đây...",
+        spellChecker: False,
+        status: False,
+        minHeight: "300px",
+    });
+
+    // Xử lý sự kiện Paste ảnh
+    easyMDE.codemirror.on("paste", function(cm, event) {
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.includes('image')) {
+                const blob = item.getAsFile();
+                uploadImage(blob, cm);
+            }
+        }
+    });
+
+    function uploadImage(file, cm) {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        // Hiển thị trạng thái đang upload
+        const cursor = cm.getCursor();
+        cm.replaceRange("![Đang tải ảnh...]()", cursor);
+
+        fetch("{% url 'upload_image' %}", {
+            method: 'POST',
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.url) {
+                const newValue = `![image](${data.url})`;
+                // Tìm text "Đang tải ảnh..." và thay thế
+                const doc = cm.getDoc();
+                const cursor = cm.getCursor();
+                const line = doc.getLine(cursor.line);
+                const updatedLine = line.replace("![Đang tải ảnh...]()", newValue);
+                doc.setLine(cursor.line, updatedLine);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert("Lỗi khi upload ảnh!");
+        });
+    }
+</script>
+{% endblock %}

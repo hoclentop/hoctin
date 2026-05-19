@@ -1,0 +1,950 @@
+{% extends 'base.html' %}
+
+{% block title %}Ngân hàng Câu hỏi - HocTin LMS{% endblock %}
+
+{% block extra_head %}
+<!-- Marked for Markdown Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(224, 231, 255, 0.8);
+    }
+    .question-content-preview p { margin-bottom: 0.5rem; }
+    .question-content-preview p:last-child { margin-bottom: 0; }
+    .question-content-preview code { background-color: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+    
+    /* Custom Scrollbar for premium tables */
+    .custom-scrollbar::-webkit-scrollbar {
+        height: 6px;
+        width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+     x-data="{
+        // Modal states
+        previewOpen: false,
+        activeQuestion: null,
+        deleteOpen: false,
+        deleteUrl: '',
+        deleteQuestionId: null,
+
+        // New group creation states
+        groupAddOpen: false,
+        newGroupName: '',
+        isAddingGroup: false,
+
+        // Bulk selection and assignment states
+        selectedQuestionIds: [],
+        bulkAssignOpen: false,
+        bulkGroupId: '',
+        isAssigning: false,
+
+        // Modal triggers
+        openPreview(qData) {
+            this.activeQuestion = qData;
+            this.previewOpen = true;
+            this.$nextTick(() => {
+                const contentEl = document.getElementById('modal-rendered-content');
+                if (contentEl) {
+                    contentEl.innerHTML = marked.parse(this.activeQuestion.content);
+                    if (window.renderMathInElement) {
+                        window.renderMathInElement(contentEl, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false}
+                            ],
+                            throwOnError: false
+                        });
+                    }
+                }
+                const choicesEl = document.getElementById('modal-rendered-choices');
+                if (choicesEl && window.renderMathInElement) {
+                    window.renderMathInElement(choicesEl, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false
+                    });
+                }
+            });
+        },
+
+        confirmDelete(qId, url) {
+            this.deleteQuestionId = qId;
+            this.deleteUrl = url;
+            this.deleteOpen = true;
+        },
+
+        // New group AJAX action
+        async createGroup() {
+            const name = this.newGroupName.trim();
+            if (!name) {
+                alert('Tên nhóm không được để trống.');
+                return;
+            }
+            this.isAddingGroup = true;
+            try {
+                const response = await fetch('/questions/groups/create-ajax/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name: name })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    const groupSelects = document.querySelectorAll('select[name=group]');
+                    groupSelects.forEach(select => {
+                        const opt = document.createElement('option');
+                        opt.value = result.id;
+                        opt.textContent = result.name;
+                        select.appendChild(opt);
+                    });
+                    
+                    const mainFilter = document.getElementById('group');
+                    if (mainFilter) {
+                        mainFilter.value = result.id;
+                    }
+                    
+                    this.newGroupName = '';
+                    this.groupAddOpen = false;
+                    alert('Đã thêm nhóm câu hỏi &quot;' + result.name + '&quot; thành công!');
+                } else {
+                    alert('Lỗi: ' + (result.error || 'Không xác định'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Có lỗi mạng xảy ra khi tạo nhóm.');
+            } finally {
+                this.isAddingGroup = false;
+            }
+        },
+
+        // Bulk assignment AJAX action
+        async bulkAssignGroup() {
+            if (this.selectedQuestionIds.length === 0) {
+                alert('Vui lòng chọn ít nhất một câu hỏi.');
+                return;
+            }
+            this.isAssigning = true;
+            try {
+                const response = await fetch('/questions/bulk-assign-group/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question_ids: this.selectedQuestionIds,
+                        group_id: this.bulkGroupId ? parseInt(this.bulkGroupId) : null
+                    })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert('Gán nhóm thành công cho ' + result.count + ' câu hỏi!');
+                    window.location.reload();
+                } else {
+                    alert('Lỗi: ' + (result.error || 'Không xác định'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Có lỗi mạng xảy ra khi gán nhóm.');
+            } finally {
+                this.isAssigning = false;
+            }
+        }
+     }"
+     x-init="
+        // Render math in body on initial load
+        this.$nextTick(() => {
+            const listContainer = document.getElementById('question-list-container');
+            if (listContainer && window.renderMathInElement) {
+                window.renderMathInElement(listContainer, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+            }
+        });
+     ">
+
+    <!-- Header & Action Section -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-3xl font-extrabold text-gray-900 font-outfit sm:truncate flex items-center gap-3">
+                <span class="p-2 rounded-lg bg-indigo-100 text-indigo-600">
+                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                </span>
+                Ngân hàng Câu hỏi
+            </h2>
+            <p class="mt-1 text-sm text-gray-500">Quản lý và sử dụng kho tàng câu hỏi dùng chung giữa các Giáo viên (Option A).</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center gap-3">
+            <a href="{% url 'question_import' %}"
+               class="inline-flex items-center justify-center px-6 py-3 border border-indigo-200 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 shadow-sm transition-all gap-2 transform hover:-translate-y-0.5">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import câu hỏi
+            </a>
+            <a href="{% url 'create_question' %}"
+               class="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-sm font-bold text-white shadow-lg shadow-indigo-100 transition-all gap-2 transform hover:-translate-y-0.5">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Tạo câu hỏi mới
+            </a>
+        </div>
+    </div>
+
+    <!-- Advanced Filters Glass Card -->
+    <div class="glass-card rounded-2xl shadow-sm p-6 mb-8">
+        <form method="GET" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <!-- Text Search -->
+                <div class="md:col-span-4">
+                    <label for="q" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Tìm kiếm nội dung</label>
+                    <div class="relative rounded-xl shadow-sm">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input type="text" name="q" id="q" value="{{ q_search }}"
+                               class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder-gray-400"
+                               placeholder="Tìm câu hỏi, biểu thức toán...">
+                    </div>
+                </div>
+
+                <!-- Question Type Filter -->
+                <div class="md:col-span-2">
+                    <label for="type" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Hình thức</label>
+                    <select id="type" name="type"
+                            class="w-full py-2.5 bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        <option value="">-- Tất cả --</option>
+                        <option value="1" {% if q_type == '1' %}selected{% endif %}>Trắc nghiệm 1 lựa chọn</option>
+                        <option value="2" {% if q_type == '2' %}selected{% endif %}>Trắc nghiệm nhiều lựa chọn</option>
+                        <option value="3" {% if q_type == '3' %}selected{% endif %}>Đúng/Sai 4 ý</option>
+                        <option value="4" {% if q_type == '4' %}selected{% endif %}>Trả lời ngắn</option>
+                    </select>
+                </div>
+
+                <!-- Question Group Filter -->
+                <div class="md:col-span-2">
+                    <div class="flex items-center justify-between mb-2">
+                        <label for="group" class="block text-xs font-bold text-gray-400 uppercase tracking-wider">Nhóm</label>
+                        {% if user.is_staff or user.is_superuser %}
+                            <button type="button" @click="groupAddOpen = true" class="text-xs text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center gap-0.5 transition-all">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Thêm
+                            </button>
+                        {% endif %}
+                    </div>
+                    <select id="group" name="group"
+                            class="w-full py-2.5 bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        <option value="">-- Tất cả --</option>
+                        {% for group in groups %}
+                            <option value="{{ group.id }}" {% if q_group == group.id|stringformat:"s" %}selected{% endif %}>{{ group.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Publicity Filter -->
+                <div class="md:col-span-2">
+                    <label for="visibility" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Bảo mật</label>
+                    <select id="visibility" name="visibility"
+                            class="w-full py-2.5 bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        <option value="all" {% if q_visibility == 'all' %}selected{% endif %}>Tất cả</option>
+                        <option value="public" {% if q_visibility == 'public' %}selected{% endif %}>Công khai</option>
+                        <option value="private" {% if q_visibility == 'private' %}selected{% endif %}>Nội bộ</option>
+                    </select>
+                </div>
+
+                <!-- Creator Filter -->
+                <div class="md:col-span-2">
+                    <label for="creator" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Tác giả</label>
+                    <select id="creator" name="creator"
+                            class="w-full py-2.5 bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        <option value="all" {% if q_creator == 'all' %}selected{% endif %}>Tất cả tác giả</option>
+                        <option value="mine" {% if q_creator == 'mine' %}selected{% endif %}>Tôi tạo ra</option>
+                        <option value="others" {% if q_creator == 'others' %}selected{% endif %}>Người khác tạo</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-indigo-50/50">
+                <!-- Sorting Options -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Sắp xếp:</span>
+                    <button type="submit" name="sort" value="newest"
+                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all {% if q_sort == 'newest' or not q_sort %}bg-indigo-600 text-white shadow-md{% else %}bg-gray-100 text-gray-600 hover:bg-gray-250{% endif %}">
+                        Mới nhất
+                    </button>
+                    <button type="submit" name="sort" value="oldest"
+                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all {% if q_sort == 'oldest' %}bg-indigo-600 text-white shadow-md{% else %}bg-gray-100 text-gray-600 hover:bg-gray-250{% endif %}">
+                        Cũ nhất
+                    </button>
+                    <button type="submit" name="sort" value="group"
+                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all {% if q_sort == 'group' %}bg-indigo-600 text-white shadow-md{% else %}bg-gray-100 text-gray-600 hover:bg-gray-250{% endif %}">
+                        Theo nhóm
+                    </button>
+                </div>
+
+                <!-- Submit / Clear Actions -->
+                <div class="flex items-center gap-3">
+                    <a href="{% url 'question_list' %}"
+                       class="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                        Xoá bộ lọc
+                    </a>
+                    <button type="submit"
+                            class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white rounded-xl shadow-md transition-all">
+                        Áp dụng bộ lọc
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Questions Table / List -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/75 border-b border-gray-200 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        {% if user.is_staff or user.is_superuser %}
+                            <th class="py-4 px-6 w-12 text-center">
+                                <input type="checkbox" @change="selectedQuestionIds = $event.target.checked ? [{% for q in page_obj %}{{ q.id }}{% if not forloop.last %},{% endif %}{% endfor %}] : []" :checked="selectedQuestionIds.length === {{ page_obj|length }}" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            </th>
+                        {% endif %}
+                        <th class="py-4 px-6 w-28">Hình thức</th>
+                        <th class="py-4 px-6 w-40">Nhóm</th>
+                        <th class="py-4 px-6">Nội dung câu hỏi</th>
+                        <th class="py-4 px-6 w-32">Bảo mật</th>
+                        <th class="py-4 px-6 w-44">Tác giả</th>
+                        <th class="py-4 px-6 w-36 text-right">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="question-list-container" class="divide-y divide-gray-100 text-sm">
+                    {% for q in page_obj %}
+                        <tr class="hover:bg-indigo-50/20 transition-all">
+                            {% if user.is_staff or user.is_superuser %}
+                                <td class="py-4 px-6 text-center">
+                                    <input type="checkbox" :value="{{ q.id }}" x-model="selectedQuestionIds" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                </td>
+                            {% endif %}
+                            <!-- Type Badge -->
+                            <td class="py-4 px-6 font-medium whitespace-nowrap">
+                                {% if q.question_type == 1 %}
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                        Lựa chọn duy nhất
+                                    </span>
+                                {% elif q.question_type == 2 %}
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                                        Nhiều lựa chọn
+                                    </span>
+                                {% elif q.question_type == 3 %}
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                        Đúng/Sai độc lập
+                                    </span>
+                                {% elif q.question_type == 4 %}
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 text-amber-700 border border-amber-100">
+                                        Trả lời ngắn
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <!-- Group name -->
+                            <td class="py-4 px-6 whitespace-nowrap text-gray-500 font-semibold">
+                                {% if q.group %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                                        {{ q.group.name }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-xs text-gray-400 italic">Chưa phân nhóm</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- Question Content Summary -->
+                            <td class="py-4 px-6">
+                                <div class="text-gray-800 font-medium line-clamp-2 question-content-preview leading-relaxed">
+                                    {{ q.content }}
+                                </div>
+                            </td>
+
+                            <!-- Publicity -->
+                            <td class="py-4 px-6 whitespace-nowrap">
+                                {% if q.is_public %}
+                                    <span class="inline-flex items-center gap-1.5 text-emerald-600 text-xs font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h2a2.5 2.5 0 002.5-2.5V14a2 2 0 012-2h.055M11 20.055V17a2 2 0 00-2-2h-2a2 2 0 00-2 2v3.055M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Công khai
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center gap-1.5 text-rose-600 text-xs font-bold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                        Nội bộ
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <!-- Creator info -->
+                            <td class="py-4 px-6 whitespace-nowrap text-xs text-gray-500">
+                                <div class="font-bold text-gray-900">{{ q.creator.username|default:"Hệ thống" }}</div>
+                                <div class="mt-0.5 text-gray-400">{{ q.created_at|date:"d/m/Y H:i" }}</div>
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="py-4 px-6 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end gap-2">
+                                    <!-- Practice/Try trigger -->
+                                    <a href="{% url 'question_detail' q.id %}"
+                                       title="Luyện tập & Trả lời thử"
+                                       class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </a>
+
+                                    <!-- Preview trigger -->
+                                    <button type="button"
+                                            @click='openPreview({
+                                                id: {{ q.id }},
+                                                type: {{ q.question_type }},
+                                                content: `{{ q.content|escapejs }}`,
+                                                group: "{{ q.group.name|default:"" }}",
+                                                is_public: {{ q.is_public|yesno:"true,false" }},
+                                                creator: "{{ q.creator.username|default:"Hệ thống" }}",
+                                                choices: [
+                                                    {% for choice in q.choices.all %}
+                                                        {
+                                                            text: `{{ choice.content|escapejs }}`,
+                                                            is_correct: {{ choice.is_correct|yesno:"true,false" }},
+                                                            position: {{ choice.position }}
+                                                        }{% if not forloop.last %},{% endif %}
+                                                    {% endfor %}
+                                                ]
+                                            })'
+                                            title="Xem chi tiết câu hỏi"
+                                            class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                    </button>
+
+                                    <!-- Edit Question -->
+                                    {% if q.can_edit %}
+                                        <a href="{% url 'edit_question' q.id %}"
+                                           title="Chỉnh sửa câu hỏi"
+                                           class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </a>
+                                    {% else %}
+                                        <span title="Chỉ đọc (Sở hữu bởi {{ q.creator.username }})"
+                                              class="p-2 text-gray-300 cursor-not-allowed">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                            </svg>
+                                        </span>
+                                    {% endif %}
+
+                                    <!-- Delete Question -->
+                                    {% if q.can_edit %}
+                                        <button type="button"
+                                                @click="confirmDelete({{ q.id }}, '{% url 'delete_question' q.id %}')"
+                                                title="Xoá câu hỏi"
+                                                class="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    {% else %}
+                                        <span title="Chỉ đọc (Sở hữu bởi {{ q.creator.username }})"
+                                              class="p-2 text-gray-300 cursor-not-allowed">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                            </svg>
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="{% if user.is_staff or user.is_superuser %}7{% else %}6{% endif %}" class="py-12 text-center text-gray-500">
+                                <svg class="mx-auto h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <h3 class="mt-2 text-sm font-bold text-gray-900">Không tìm thấy câu hỏi</h3>
+                                <p class="mt-1 text-xs text-gray-400">Thử thay đổi từ khoá tìm kiếm hoặc đặt lại các bộ lọc xem sao.</p>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Section -->
+        {% if page_obj.has_other_pages %}
+            <div class="bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {% if page_obj.has_previous %}
+                        <a href="?page={{ page_obj.previous_page_number }}&q={{ q_search }}&type={{ q_type }}&group={{ q_group }}&visibility={{ q_visibility }}&creator={{ q_creator }}&sort={{ q_sort }}"
+                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-xs font-bold rounded-xl text-gray-700 bg-white hover:bg-gray-50">
+                            Trang trước
+                        </a>
+                    {% endif %}
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}&q={{ q_search }}&type={{ q_type }}&group={{ q_group }}&visibility={{ q_visibility }}&creator={{ q_creator }}&sort={{ q_sort }}"
+                           class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-xs font-bold rounded-xl text-gray-700 bg-white hover:bg-gray-50">
+                            Trang sau
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-xs text-gray-500 font-semibold">
+                            Hiển thị câu hỏi từ
+                            <span class="font-extrabold text-gray-900">{{ page_obj.start_index }}</span>
+                            đến
+                            <span class="font-extrabold text-gray-900">{{ page_obj.end_index }}</span>
+                            trong tổng số
+                            <span class="font-extrabold text-indigo-600">{{ page_obj.paginator.count }}</span> câu hỏi.
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-xl shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if page_obj.has_previous %}
+                                <a href="?page={{ page_obj.previous_page_number }}&q={{ q_search }}&type={{ q_type }}&group={{ q_group }}&visibility={{ q_visibility }}&creator={{ q_creator }}&sort={{ q_sort }}"
+                                   class="relative inline-flex items-center px-3 py-2 rounded-l-xl border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Previous</span>
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </a>
+                            {% endif %}
+
+                            {% for i in page_obj.paginator.page_range %}
+                                {% if page_obj.number == i %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-indigo-500 bg-indigo-50 text-xs font-bold text-indigo-600">
+                                        {{ i }}
+                                    </span>
+                                {% elif i > page_obj.number|add:-3 and i < page_obj.number|add:3 %}
+                                    <a href="?page={{ i }}&q={{ q_search }}&type={{ q_type }}&group={{ q_group }}&visibility={{ q_visibility }}&creator={{ q_creator }}&sort={{ q_sort }}"
+                                       class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 text-xs font-bold">
+                                        {{ i }}
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                                <a href="?page={{ page_obj.next_page_number }}&q={{ q_search }}&type={{ q_type }}&group={{ q_group }}&visibility={{ q_visibility }}&creator={{ q_creator }}&sort={{ q_sort }}"
+                                   class="relative inline-flex items-center px-3 py-2 rounded-r-xl border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Next</span>
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- PREMIUM PREVIEW MODAL OVERLAY -->
+    <div class="fixed inset-0 z-50 overflow-y-auto"
+         x-show="previewOpen"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         x-cloak>
+        
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="previewOpen = false"></div>
+
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-3xl border border-gray-100"
+                 x-show="previewOpen"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+                
+                <!-- Close Button -->
+                <div class="absolute top-5 right-5">
+                    <button type="button" @click="previewOpen = false" class="p-1 text-gray-400 hover:bg-gray-100 rounded-lg transition-all">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Modal Header -->
+                <div class="bg-gray-50 px-6 py-5 border-b border-gray-150 flex items-center gap-3">
+                    <span class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-100 text-indigo-700 font-mono uppercase tracking-wider"
+                          x-text="activeQuestion ? 'Câu hỏi #' + activeQuestion.id : ''"></span>
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-800 border border-gray-300"
+                          x-text="activeQuestion ? activeQuestion.group || 'Chưa phân nhóm' : ''"></span>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="px-8 py-6 space-y-6">
+                    <!-- Question text block -->
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2.5">Nội dung câu hỏi</h4>
+                        <div id="modal-rendered-content" class="text-gray-900 font-medium text-base leading-relaxed bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Choices block -->
+                    <div id="modal-rendered-choices" class="space-y-3">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Đáp án & Cấu hình</h4>
+                        
+                        <!-- Choice list rendering -->
+                        <template x-if="activeQuestion && activeQuestion.type !== 4">
+                            <div class="space-y-2.5">
+                                <template x-for="(choice, idx) in activeQuestion.choices" :key="idx">
+                                    <div class="flex items-center justify-between p-3.5 rounded-xl border"
+                                         :class="choice.is_correct ? 'bg-emerald-50/50 border-emerald-200' : 'bg-white border-gray-200'">
+                                        <div class="flex items-center gap-3">
+                                            <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                                                  :class="choice.is_correct ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-100 border border-gray-300 text-gray-500'"
+                                                  x-text="activeQuestion.type === 1 ? String.fromCharCode(65 + idx) : (idx + 1)"></span>
+                                            <div class="text-gray-800 text-sm font-medium" x-html="choice.text"></div>
+                                        </div>
+                                        <span x-show="choice.is_correct" class="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
+                                            <span x-text="activeQuestion.type === 3 ? (choice.is_correct ? 'Đúng' : 'Sai') : 'Đúng'"></span>
+                                        </span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Synonyms lists rendering for Short Answer -->
+                        <template x-if="activeQuestion && activeQuestion.type === 4">
+                            <div class="space-y-2">
+                                <template x-for="(choice, idx) in activeQuestion.choices" :key="idx">
+                                    <div class="flex items-center justify-between bg-white border border-gray-200 p-3 rounded-xl shadow-sm">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-gray-400 font-bold" x-text="'Từ đồng nghĩa ' + (idx + 1) + ':'"></span>
+                                            <span class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 font-mono" x-text="choice.text"></span>
+                                        </div>
+                                        <!-- Matching criteria details -->
+                                        <div class="flex gap-2">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                                                  :class="choice.is_correct ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400'"
+                                                  x-text="choice.is_correct ? 'Aa Phân biệt' : 'Không phân biệt'"></span>
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                                                  :class="choice.position === 1 ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400'"
+                                                  x-text="choice.position === 1 ? 'Bỏ dấu cách' : 'Giữ dấu cách'"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Meta specifications -->
+                    <div class="grid grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 text-xs">
+                        <div>
+                            <span class="font-bold text-gray-400 uppercase">Tác giả: </span>
+                            <span class="font-bold text-gray-800" x-text="activeQuestion ? activeQuestion.creator : ''"></span>
+                        </div>
+                        <div>
+                            <span class="font-bold text-gray-400 uppercase">Trạng thái: </span>
+                            <span class="font-bold" :class="activeQuestion && activeQuestion.is_public ? 'text-emerald-600' : 'text-rose-600'"
+                                  x-text="activeQuestion && activeQuestion.is_public ? 'Công khai toàn cục' : 'Chỉ dùng nội bộ'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="bg-gray-50 px-6 py-4 border-t border-gray-150 flex items-center justify-end gap-3">
+                    <template x-if="activeQuestion">
+                        <a :href="'/questions/' + activeQuestion.id + '/'"
+                           class="px-5 py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-250 text-xs font-bold rounded-xl transition-all">
+                            Luyện tập
+                        </a>
+                    </template>
+                    <button type="button" @click="previewOpen = false"
+                            class="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                        Đóng xem trước
+                    </button>
+                    <template x-if="activeQuestion && (activeQuestion.creator === '{{ user.username }}' || {{ user.is_superuser|yesno:'true,false' }})">
+                        <a :href="'/questions/' + activeQuestion.id + '/edit/'"
+                           class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white rounded-xl shadow-md transition-all">
+                            Chỉnh sửa câu hỏi
+                        </a>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PREMIUM ALPINEJS DELETION CONFIRMATION MODAL -->
+    <div class="fixed inset-0 z-50 overflow-y-auto"
+         x-show="deleteOpen"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         x-cloak>
+        
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="deleteOpen = false"></div>
+
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-md border border-gray-100"
+                 x-show="deleteOpen"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+                
+                <div class="px-6 pt-6 pb-4 text-center">
+                    <!-- Warning Icon -->
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 border border-rose-100 text-rose-500 mb-4 animate-bounce">
+                        <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+
+                    <h3 class="text-lg font-bold text-gray-900 font-outfit">Xác nhận xoá câu hỏi?</h3>
+                    <p class="mt-2 text-xs text-gray-500 leading-relaxed">
+                        Bạn có chắc chắn muốn xoá câu hỏi <span class="font-bold text-rose-600" x-text="'#' + deleteQuestionId"></span> khỏi hệ thống? 
+                        Hành động này <span class="font-bold text-rose-600">không thể phục hồi</span> và sẽ tự động gỡ bỏ toàn bộ đáp án liên quan.
+                    </p>
+                </div>
+
+                <!-- Form POST delete -->
+                <form :action="deleteUrl" method="POST" class="bg-gray-50 px-6 py-4 flex items-center justify-center gap-3 border-t border-gray-100 rounded-b-3xl">
+                    {% csrf_token %}
+                    <button type="button" @click="deleteOpen = false"
+                            class="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                        Hủy bỏ
+                    </button>
+                    <button type="submit"
+                            class="flex-1 px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-xs font-bold text-white rounded-xl shadow-md shadow-rose-100 transition-all">
+                        Đồng ý xoá
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL THÊM NHÓM CÂU HỎI -->
+    <div class="fixed inset-0 z-50 overflow-y-auto"
+         x-show="groupAddOpen"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         x-cloak>
+        
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="groupAddOpen = false"></div>
+
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-md border border-gray-100"
+                 x-show="groupAddOpen"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+                
+                <div class="px-6 pt-6 pb-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-900 font-outfit">Thêm nhóm câu hỏi mới</h3>
+                        <button type="button" @click="groupAddOpen = false" class="p-1 text-gray-400 hover:bg-gray-100 rounded-lg transition-all">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label for="newGroupNameInput" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Tên nhóm</label>
+                            <input type="text" id="newGroupNameInput" x-model="newGroupName"
+                                   @keydown.enter.prevent="createGroup"
+                                   class="w-full px-4 py-2.5 bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder-gray-400"
+                                   placeholder="Ví dụ: Hàm và Thủ tục trong Python">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-100 rounded-b-3xl">
+                    <button type="button" @click="groupAddOpen = false"
+                            class="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                        Hủy bỏ
+                    </button>
+                    <button type="button" @click="createGroup" :disabled="isAddingGroup"
+                            class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-xs font-bold text-white rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                        <template x-if="isAddingGroup">
+                            <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        Tạo nhóm mới
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- THANH THAO TÁC HÀNG LOẠT NỔI (FLOATING BULK ACTION BAR) -->
+    <div class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 w-full max-w-2xl px-4 sm:px-6"
+         x-show="selectedQuestionIds.length > 0"
+         x-transition:enter="transition ease-out duration-300 transform"
+         x-transition:enter-start="translate-y-20 opacity-0 -translate-x-1/2"
+         x-transition:enter-end="translate-y-0 opacity-100 -translate-x-1/2"
+         x-transition:leave="transition ease-in duration-200 transform"
+         x-transition:leave-start="translate-y-0 opacity-100 -translate-x-1/2"
+         x-transition:leave-end="translate-y-20 opacity-0 -translate-x-1/2"
+         x-cloak>
+        
+        <div class="glass-card bg-indigo-900/95 text-white rounded-2xl shadow-2xl p-4 flex items-center justify-between gap-4 border border-indigo-700/50 backdrop-blur-xl">
+            <div class="flex items-center gap-3">
+                <span class="p-2 rounded-xl bg-indigo-500/30 text-indigo-300">
+                    <svg class="w-6 h-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                </span>
+                <div>
+                    <div class="font-extrabold text-sm sm:text-base font-outfit text-white">Đang chọn <span x-text="selectedQuestionIds.length" class="text-yellow-400 font-black"></span> câu hỏi</div>
+                    <div class="text-xs text-indigo-200 hidden sm:block">Chọn hành động để áp dụng đồng loạt</div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button type="button" @click="bulkAssignOpen = true"
+                        class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-xs font-bold text-white rounded-xl shadow-md transition-all gap-1.5 flex items-center transform hover:-translate-y-0.5">
+                    Gán nhóm nhanh
+                </button>
+                <button type="button" @click="selectedQuestionIds = []"
+                        class="px-3 py-2 bg-indigo-850 hover:bg-indigo-850/80 text-xs font-bold text-indigo-200 rounded-xl transition-all">
+                    Hủy chọn
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL GÁN NHÓM HÀNG LOẠT -->
+    <div class="fixed inset-0 z-50 overflow-y-auto"
+         x-show="bulkAssignOpen"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         x-cloak>
+        
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="bulkAssignOpen = false"></div>
+
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-md border border-gray-100"
+                 x-show="bulkAssignOpen"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+                
+                <div class="px-6 pt-6 pb-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-900 font-outfit">Gán nhóm hàng loạt</h3>
+                        <button type="button" @click="bulkAssignOpen = false" class="p-1 text-gray-400 hover:bg-gray-100 rounded-lg transition-all">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <p class="text-xs text-gray-500 leading-relaxed">
+                            Chọn nhóm bạn muốn gán cho <span class="font-bold text-indigo-600" x-text="selectedQuestionIds.length"></span> câu hỏi đã chọn. 
+                            <br><span class="text-rose-500 font-bold">*Lưu ý: Chỉ áp dụng thành công cho các câu hỏi do bạn tạo ra (trừ khi là Quản trị viên).*</span>
+                        </p>
+                        <div>
+                            <label for="bulkGroupSelect" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Chọn nhóm câu hỏi</label>
+                            <select id="bulkGroupSelect" x-model="bulkGroupId"
+                                    class="w-full px-4 py-2.5 bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                                <option value="">-- Gỡ nhóm câu hỏi (Không phân nhóm) --</option>
+                                {% for group in groups %}
+                                    <option value="{{ group.id }}">{{ group.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-100 rounded-b-3xl">
+                    <button type="button" @click="bulkAssignOpen = false"
+                            class="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                        Hủy bỏ
+                    </button>
+                    <button type="button" @click="bulkAssignGroup" :disabled="isAssigning"
+                            class="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-xs font-bold text-white rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                        <template x-if="isAssigning">
+                            <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        Áp dụng gán nhóm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

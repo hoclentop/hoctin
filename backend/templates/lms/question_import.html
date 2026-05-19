@@ -1,0 +1,515 @@
+{% extends 'base.html' %}
+
+{% block title %}Import Câu hỏi Trắc nghiệm - HocTin LMS{% endblock %}
+
+{% block extra_head %}
+<!-- Marked for Markdown Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(224, 231, 255, 0.8);
+    }
+    .preview-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .preview-card:hover {
+        transform: translateY(-4px);
+    }
+    .custom-textarea::-webkit-scrollbar {
+        width: 8px;
+    }
+    .custom-textarea::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 8px;
+    }
+    .custom-textarea::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 8px;
+    }
+    .custom-textarea::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+     x-data="{
+        activeTab: 'text', // 'text' or 'csv'
+        textContent: '',
+        csvFile: null,
+        csvFileName: '',
+        isParsing: false,
+        isSaving: false,
+        parsedQuestions: [],
+        totalParsed: 0,
+        totalValid: 0,
+        selectedGroupId: '',
+        hasRunValidation: false,
+
+        // Mẫu dữ liệu Aiken mở rộng để chèn nhanh
+        insertSample() {
+            this.textContent = `Câu 1: Thiết bị nào sau đây dùng để lưu trữ dữ liệu lâu dài trong máy tính?
+A. Bộ nhớ RAM
+B. Đĩa cứng (HDD/SSD)
+C. Bộ xử lý trung tâm (CPU)
+D. Bộ nhớ đệm (Cache)
+Đáp án: B
+
+Câu 2: Các ngôn ngữ lập trình nào sau đây là ngôn ngữ bậc cao?
+A. Python
+B. Assembly (Hợp ngữ)
+C. C++
+D. Mã máy (Machine code)
+Đáp án: A, C
+
+Câu 3: Cho hàm số y = 3^x. Các mệnh đề sau đúng hay sai?
+A. Tập xác định của hàm số là R
+B. Đồ thị hàm số đi qua điểm (0; 1)
+C. Hàm số luôn đồng biến trên R
+D. Đồ thị hàm số nhận trục Oy làm tiệm cận ngang
+Đáp án: A - Đúng, B - Đúng, C - Đúng, D - Sai
+
+Câu 4: Kết quả của biểu thức toán học sau là bao nhiêu?
+$$\\lim_{x \\to 0} \\frac{\\sin x}{x}$$
+Đáp án: 1 | một`;
+            this.hasRunValidation = false;
+            this.parsedQuestions = [];
+        },
+
+        // API gọi AJAX parse câu hỏi
+        async validateImport() {
+            this.isParsing = true;
+            this.hasRunValidation = true;
+            this.parsedQuestions = [];
+
+            const formData = new FormData();
+            if (this.activeTab === 'text') {
+                if (!this.textContent.trim()) {
+                    alert('Vui lòng nhập nội dung văn bản câu hỏi trước khi kiểm tra.');
+                    this.isParsing = false;
+                    return;
+                }
+                formData.append('text_content', this.textContent);
+            } else {
+                if (!this.csvFile) {
+                    alert('Vui lòng chọn tệp tin CSV trước khi kiểm tra.');
+                    this.isParsing = false;
+                    return;
+                }
+                formData.append('file', this.csvFile);
+            }
+
+            try {
+                const response = await fetch('/questions/import/parse-ajax/', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    this.parsedQuestions = result.questions.map(q => {
+                        q.renderedContent = marked.parse(q.content || '');
+                        if (q.choices) {
+                            q.choices = q.choices.map(c => {
+                                c.renderedContent = marked.parse(c.content || '');
+                                return c;
+                            });
+                        }
+                        return q;
+                    });
+                    this.totalParsed = result.total_parsed;
+                    this.totalValid = result.total_valid;
+                    
+                    // Render Markdown & MathJax cho phần Preview
+                    this.$nextTick(() => {
+                        if (window.renderMathInElement) {
+                            window.renderMathInElement(document.getElementById('preview-container'), {
+                                delimiters: [
+                                    {left: '$$', right: '$$', display: true},
+                                    {left: '$', right: '$', display: false}
+                                ],
+                                throwOnError: false
+                            });
+                        }
+                    });
+                } else {
+                    alert('Lỗi phân tích: ' + (result.error || 'Đã có lỗi cấu trúc xảy ra.'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Có lỗi mạng xảy ra khi gửi yêu cầu phân tích.');
+            } finally {
+                this.isParsing = false;
+            }
+        },
+
+        // API lưu database
+        async saveImport() {
+            if (this.totalValid === 0) {
+                alert('Không có câu hỏi nào hợp lệ để lưu.');
+                return;
+            }
+            
+            const invalidCount = this.totalParsed - this.totalValid;
+            if (invalidCount > 0) {
+                if (!confirm(`Chú ý: Có ${invalidCount} câu hỏi không hợp lệ sẽ bị bỏ qua. Bạn có chắc chắn muốn lưu ${this.totalValid} câu hỏi hợp lệ còn lại không?`)) {
+                    return;
+                }
+            }
+
+            this.isSaving = true;
+            try {
+                const response = await fetch('/questions/import/save-ajax/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        questions: this.parsedQuestions,
+                        group_id: this.selectedGroupId ? parseInt(this.selectedGroupId) : null
+                    })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    alert(result.message);
+                    window.location.href = '/questions/';
+                } else {
+                    alert('Lỗi khi lưu câu hỏi: ' + (result.error || 'Vui lòng thử lại.'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Lỗi mạng xảy ra khi lưu câu hỏi.');
+            } finally {
+                this.isSaving = false;
+            }
+        },
+
+        handleFileChange(e) {
+            const file = e.target.files[0];
+            if (file) {
+                this.csvFile = file;
+                this.csvFileName = file.name;
+                this.hasRunValidation = false;
+                this.parsedQuestions = [];
+            }
+        }
+     }">
+
+    <!-- Header Section -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <a href="{% url 'question_list' %}" class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-850 uppercase tracking-wider mb-2.5 transition-all">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Trở lại ngân hàng câu hỏi
+            </a>
+            <h2 class="text-3xl font-extrabold text-gray-900 font-outfit sm:truncate flex items-center gap-3">
+                <span class="p-2 rounded-lg bg-indigo-100 text-indigo-600">
+                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                </span>
+                Import Câu hỏi số lượng lớn
+            </h2>
+            <p class="mt-1 text-sm text-gray-500">Khai báo hàng loạt câu hỏi thuộc cả 4 hình thức vào ngân hàng câu hỏi chỉ trong vài giây.</p>
+        </div>
+    </div>
+
+    <!-- Main Workspace Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        <!-- Left Column: Input Panel -->
+        <div class="lg:col-span-7 space-y-6">
+            <div class="glass-card rounded-2xl shadow-sm overflow-hidden border border-gray-200">
+                <!-- Tab Headers -->
+                <div class="flex border-b border-gray-200 bg-gray-50/75">
+                    <button type="button"
+                            @click="activeTab = 'text'; hasRunValidation = false; parsedQuestions = [];"
+                            :class="activeTab === 'text' ? 'border-indigo-600 text-indigo-700 bg-white font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 font-semibold'"
+                            class="flex-1 py-4 text-center border-b-2 text-sm transition-all focus:outline-none flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Copy-Paste Văn bản thô
+                    </button>
+                    <button type="button"
+                            @click="activeTab = 'csv'; hasRunValidation = false; parsedQuestions = [];"
+                            :class="activeTab === 'csv' ? 'border-indigo-600 text-indigo-700 bg-white font-bold' : 'border-transparent text-gray-500 hover:text-gray-700 font-semibold'"
+                            class="flex-1 py-4 text-center border-b-2 text-sm transition-all focus:outline-none flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Tải tệp CSV mẫu
+                    </button>
+                </div>
+
+                <!-- Tab 1 Contents: Text Copy-Paste -->
+                <div x-show="activeTab === 'text'" class="p-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label for="text-input" class="block text-xs font-bold text-gray-400 uppercase tracking-wider">Soạn thảo đề thi dạng Aiken mở rộng</label>
+                        <button type="button" @click="insertSample()"
+                                class="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Chèn dữ liệu mẫu
+                        </button>
+                    </div>
+                    <textarea id="text-input"
+                              x-model="textContent"
+                              rows="16"
+                              class="w-full bg-gray-50 border-gray-300 rounded-xl focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm font-mono p-4 custom-textarea leading-relaxed"
+                              placeholder="Dán câu hỏi của bạn tại đây..."></textarea>
+                </div>
+
+                <!-- Tab 2 Contents: CSV upload -->
+                <div x-show="activeTab === 'csv'" class="p-8 text-center space-y-6">
+                    <div class="mx-auto w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m-9-4h18M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    
+                    <div class="max-w-md mx-auto">
+                        <h3 class="text-base font-bold text-gray-900">Import từ tệp Excel mẫu (.csv)</h3>
+                        <p class="mt-2 text-xs text-gray-500 leading-relaxed">
+                            Tải xuống tệp tin CSV mẫu định dạng UTF-8 được cấu hình chuẩn cho cả 4 loại câu hỏi, điền dữ liệu của bạn và kéo thả tệp tin vào đây.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+                        <a href="{% url 'download_csv_template' %}"
+                           class="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-350 hover:bg-gray-50 rounded-xl text-xs font-bold text-gray-700 transition-all shadow-sm">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Tải file CSV mẫu (UTF-8)
+                        </a>
+
+                        <label class="relative cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-indigo-100 transition-all flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Chọn tệp tin CSV
+                            <input type="file" accept=".csv" class="hidden" @change="handleFileChange($event)">
+                        </label>
+                    </div>
+
+                    <div x-show="csvFileName" class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800 font-bold inline-flex items-center gap-2 max-w-xs transition-all">
+                        <span class="truncate" x-text="csvFileName"></span>
+                        <button type="button" @click="csvFile = null; csvFileName = ''; hasRunValidation = false;" class="text-rose-500 hover:text-rose-700">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Footer Operations -->
+                <div class="px-6 py-4 bg-gray-50/75 border-t border-gray-200 flex items-center justify-between">
+                    <div>
+                        <!-- Optional assignment of default group -->
+                        <div class="flex items-center gap-2">
+                            <label for="group-select" class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap">Chọn nhóm mặc định:</label>
+                            <select id="group-select"
+                                    x-model="selectedGroupId"
+                                    class="py-1.5 px-3 bg-white border-gray-300 rounded-lg text-xs font-semibold focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">-- Để trống --</option>
+                                {% for g in groups %}
+                                    <option value="{{ g.id }}">{{ g.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button type="button"
+                            @click="validateImport()"
+                            :disabled="isParsing || (activeTab === 'csv' && !csvFile)"
+                            :class="(isParsing || (activeTab === 'csv' && !csvFile)) ? 'opacity-50 cursor-not-allowed bg-gray-300 text-gray-500' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100'"
+                            class="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                        <svg x-show="isParsing" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Phân tích & Kiểm tra cấu trúc
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Instructions & Aiken Syntax Quick reference -->
+        <div class="lg:col-span-5 space-y-6">
+            <div class="bg-indigo-900 text-white rounded-2xl shadow-lg p-6 border border-indigo-850">
+                <h3 class="text-lg font-bold font-outfit mb-3 flex items-center gap-2 text-indigo-100">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Quy ước Aiken Mở rộng (Extended Aiken)
+                </h3>
+                <div class="space-y-4 text-xs text-indigo-200 leading-relaxed font-medium">
+                    <p>Bộ parse Aiken hỗ trợ tự động nhận diện cấu trúc của tất cả 4 loại câu hỏi dựa trên nội dung bạn nhập:</p>
+                    
+                    <div class="bg-indigo-950 p-3 rounded-xl space-y-2 border border-indigo-800">
+                        <span class="text-indigo-400 font-bold uppercase">1. Trắc nghiệm 1 lựa chọn (Type 1)</span>
+                        <pre class="font-mono text-[10px] text-gray-300">Thủ đô của Việt Nam là gì?
+A. Hà Nội
+B. Đà Nẵng
+Đáp án: A</pre>
+                    </div>
+
+                    <div class="bg-indigo-950 p-3 rounded-xl space-y-2 border border-indigo-800">
+                        <span class="text-indigo-400 font-bold uppercase">2. Trắc nghiệm nhiều lựa chọn (Type 2)</span>
+                        <pre class="font-mono text-[10px] text-gray-300">Từ nào là từ bậc cao?
+A. Python
+B. Mã máy
+C. C++
+Đáp án: A, C</pre>
+                    </div>
+
+                    <div class="bg-indigo-950 p-3 rounded-xl space-y-2 border border-indigo-800">
+                        <span class="text-indigo-400 font-bold uppercase">3. Đúng / Sai 4 ý độc lập (Type 3)</span>
+                        <pre class="font-mono text-[10px] text-gray-300">Các mệnh đề sau đúng hay sai?
+A. y = 3^x đồng biến
+B. Đồ thị đi qua Oy
+C. Đồ thị đi qua (0,1)
+D. TXĐ là R
+Đáp án: A: Đúng, B: Sai, C: Đúng, D: Đúng</pre>
+                    </div>
+
+                    <div class="bg-indigo-950 p-3 rounded-xl space-y-2 border border-indigo-800">
+                        <span class="text-indigo-400 font-bold uppercase">4. Trả lời ngắn / Điền khuyết (Type 4)</span>
+                        <pre class="font-mono text-[10px] text-gray-300">Kết quả của 2^3 * 5?
+Đáp án: 40 | Bốn mươi</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Section: Verification & Live Preview Grid -->
+    <div x-show="hasRunValidation" class="mt-8 space-y-6" x-transition:enter="transition ease-out duration-300" x-cloak>
+        <div class="flex items-center justify-between border-b border-gray-200 pb-4">
+            <div>
+                <h3 class="text-xl font-bold text-gray-900 font-outfit">Kết quả phân tích trực quan</h3>
+                <p class="text-xs text-gray-500 mt-1">Dưới đây là tập câu hỏi được phân tích trước khi lưu vào ngân hàng câu hỏi.</p>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 text-xs font-bold">
+                    <span class="text-gray-400">TỔNG PARSE:</span>
+                    <span class="text-gray-900" x-text="totalParsed"></span>
+                    <span class="text-gray-350">|</span>
+                    <span class="text-emerald-500">HỢP LỆ:</span>
+                    <span class="text-emerald-600" x-text="totalValid"></span>
+                    <span class="text-gray-350">|</span>
+                    <span class="text-rose-500">LỖI:</span>
+                    <span class="text-rose-600" x-text="totalParsed - totalValid"></span>
+                </div>
+
+                <button type="button"
+                        @click="saveImport()"
+                        :disabled="isSaving || totalValid === 0"
+                        :class="(isSaving || totalValid === 0) ? 'opacity-50 cursor-not-allowed bg-gray-300 text-gray-500' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100'"
+                        class="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                    <svg x-show="isSaving" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Xác nhận Lưu vào Ngân hàng
+                </button>
+            </div>
+        </div>
+
+        <!-- Render live question cards grid -->
+        <div id="preview-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <template x-for="(q, idx) in parsedQuestions" :key="idx">
+                <div class="preview-card bg-white rounded-2xl shadow-sm border p-6 flex flex-col justify-between"
+                     :class="q.valid ? 'border-gray-200' : 'border-rose-300 bg-rose-50/20'">
+                    
+                    <div class="space-y-4">
+                        <!-- Top header of the card -->
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider" x-text="'Câu hỏi ' + (idx + 1)"></span>
+                            
+                            <!-- Badges -->
+                            <div class="flex gap-2">
+                                <template x-if="q.valid">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
+                                          :class="{
+                                            'bg-indigo-50 text-indigo-700': q.type === 1,
+                                            'bg-purple-50 text-purple-700': q.type === 2,
+                                            'bg-emerald-50 text-emerald-700': q.type === 3,
+                                            'bg-amber-50 text-amber-700': q.type === 4
+                                          }"
+                                          x-text="q.type === 1 ? 'Lựa chọn duy nhất' : (q.type === 2 ? 'Nhiều lựa chọn' : (q.type === 3 ? 'Đúng/Sai độc lập' : 'Trả lời ngắn'))">
+                                    </span>
+                                </template>
+                                <template x-if="!q.valid">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
+                                        Lỗi cấu trúc
+                                    </span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Render content -->
+                        <div class="text-gray-900 font-semibold text-sm leading-relaxed prose max-w-none" x-html="q.renderedContent">
+                        </div>
+
+                        <!-- Error Message Alert if invalid -->
+                        <template x-if="!q.valid">
+                            <div class="p-3 bg-rose-50 border border-rose-100 text-rose-800 text-xs font-bold rounded-xl leading-relaxed" x-text="q.error">
+                            </div>
+                        </template>
+
+                        <!-- Render Choices details -->
+                        <template x-if="q.valid && q.type !== 4">
+                            <div class="space-y-2 pt-2">
+                                <template x-for="(c, cIdx) in q.choices" :key="cIdx">
+                                    <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs"
+                                         :class="c.is_correct ? 'bg-emerald-50/40 border-emerald-250 text-emerald-900' : 'bg-gray-50 border-gray-150 text-gray-700'">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                                                  :class="c.is_correct ? 'bg-emerald-500 text-white' : 'bg-gray-200 border border-gray-300 text-gray-500'"
+                                                  x-text="String.fromCharCode(65 + cIdx)"></span>
+                                            <div class="prose max-w-none text-xs font-semibold" x-html="c.renderedContent"></div>
+                                        </div>
+                                        
+                                        <template x-if="q.type === 3">
+                                            <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded"
+                                                  :class="c.is_correct ? 'bg-emerald-200 text-emerald-800' : 'bg-rose-200 text-rose-800'"
+                                                  x-text="c.is_correct ? 'Đúng' : 'Sai'"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Render Short answers list -->
+                        <template x-if="q.valid && q.type === 4">
+                            <div class="space-y-2 pt-2">
+                                <div class="p-3 bg-emerald-50/40 border border-emerald-250 rounded-xl flex items-center gap-2 flex-wrap">
+                                    <span class="text-xs font-bold text-emerald-700 uppercase">Các đáp án đúng:</span>
+                                    <span class="text-xs font-mono font-bold text-emerald-950 flex flex-wrap gap-1 items-center">
+                                        <template x-for="(c, cIdx) in q.choices" :key="cIdx">
+                                            <span class="inline-flex items-center">
+                                                <span class="px-2 py-0.5 bg-emerald-100 rounded border border-emerald-250 font-sans text-xs font-bold text-emerald-800" x-html="c.renderedContent"></span>
+                                                <template x-if="cIdx < q.choices.length - 1">
+                                                    <span class="text-gray-400 font-bold mx-1.5">|</span>
+                                                </template>
+                                            </span>
+                                        </template>
+                                    </span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+{% endblock %}

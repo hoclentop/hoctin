@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+
+{% block title %}Bảng xếp hạng: {{ test.title }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-12 px-4 sm:px-6">
+    
+    <!-- Header with Trophy Icon -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-10 gap-6">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <svg class="w-8 h-8 text-amber-950 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm0 0H4m8 0h8m-8 0a2 2 0 102 2h-2zm0 0a2 2 0 11-2 2h2z"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-3xl font-extrabold text-gray-900 font-outfit tracking-tight">Bảng xếp hạng cao thủ</h1>
+                <p class="text-slate-500 text-sm font-light mt-0.5">Đề thi: <span class="font-semibold text-slate-700">{{ test.title }}</span></p>
+            </div>
+        </div>
+        
+        <!-- Premium Tabs -->
+        <div class="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/50 shadow-inner">
+            <a href="?mode=official" 
+               class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all {% if mode == 'official' %}bg-white text-indigo-600 shadow-md{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+                Chính thức
+            </a>
+            <a href="?mode=all" 
+               class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all {% if mode == 'all' %}bg-white text-indigo-600 shadow-md{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+                Chính thức + Luyện tập
+            </a>
+        </div>
+    </div>
+
+    <!-- Leaderboard Card Container -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-100/80 overflow-hidden">
+        
+        <!-- Leaderboard Table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-100">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-8 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Hạng</th>
+                        <th class="px-8 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Học viên</th>
+                        <th class="px-8 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Điểm số</th>
+                        <th class="px-8 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Thời gian làm</th>
+                        <th class="px-8 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Thời điểm bắt đầu</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 bg-white">
+                    {% for entry in leaderboard %}
+                        <tr class="hover:bg-slate-50/50 transition-colors duration-200">
+                            <!-- Rank -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    {% if forloop.counter == 1 %}
+                                        <span class="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-amber-300 text-amber-950 font-black text-sm flex items-center justify-center shadow-md border border-yellow-200 hover:scale-110 transition-transform cursor-default" title="Quán quân">
+                                            👑 1
+                                        </span>
+                                    {% elif forloop.counter == 2 %}
+                                        <span class="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-300 to-slate-200 text-slate-800 font-black text-sm flex items-center justify-center shadow-md border border-slate-100 hover:scale-110 transition-transform cursor-default" title="Á quân">
+                                            🥈 2
+                                        </span>
+                                    {% elif forloop.counter == 3 %}
+                                        <span class="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-amber-500 text-amber-50 font-black text-xs flex items-center justify-center shadow-md border border-amber-400/30 hover:scale-110 transition-transform cursor-default" title="Quý quân">
+                                            🥉 3
+                                        </span>
+                                    {% else %}
+                                        <span class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center">
+                                            {{ forloop.counter }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            
+                            <!-- Student User -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-50 to-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm border border-indigo-200/30 uppercase">
+                                        {{ entry.user.username|slice:":2" }}
+                                    </div>
+                                    <div class="ml-3">
+                                        <div class="text-sm font-bold text-slate-800 font-outfit">{{ entry.user.username }}</div>
+                                        <div class="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Thí sinh</div>
+                                    </div>
+                                </div>
+                            </td>
+                            
+                            <!-- Score achieved -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                <div class="flex items-baseline space-x-1">
+                                    <span class="text-xl font-extrabold text-indigo-600 font-outfit">{{ entry.total_score }}</span>
+                                    <span class="text-xs text-slate-400">/ {{ test.total_possible_points }}</span>
+                                </div>
+                            </td>
+
+                            <!-- Time taken (Duration) -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                <span class="text-sm font-semibold text-slate-700 font-outfit">{{ entry.formatted_duration }}</span>
+                            </td>
+                            
+                            <!-- Time of starting -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                <div class="flex items-center text-sm text-slate-500 font-light">
+                                    <svg class="w-4 h-4 mr-1.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    {{ entry.start_time|date:"d/m/Y H:i:s" }}
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <!-- Empty Leaderboard State -->
+                        <tr>
+                            <td colspan="5" class="px-8 py-20 text-center">
+                                <div class="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-700 font-outfit">Chưa có kết quả xếp hạng</h3>
+                                <p class="text-slate-400 text-xs font-light max-w-xs mx-auto mt-1">Hãy là người đầu tiên hoàn thành đề thi để giành lấy vị trí quán quân bảng xếp hạng nhé!</p>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

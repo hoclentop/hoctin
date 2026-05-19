@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ bundle.title }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+    <!-- Breadcrumb -->
+    <nav class="flex mb-6 text-sm text-slate-500 font-medium" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="{% url 'test_bundle_list' %}" class="inline-flex items-center hover:text-indigo-600 transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 114 0v2m-4 0h4m-4 0H5m12 0h3"></path></svg>
+                    Gói đề thi
+                </a>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="ml-1 text-slate-400 md:ml-2 font-normal line-clamp-1">{{ bundle.title }}</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Main Card -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300">
+        <!-- Header Banner -->
+        <div class="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-8 sm:p-12 text-white">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(99,102,241,0.15),transparent_50%)]"></div>
+            
+            <div class="flex flex-wrap gap-3 mb-6 relative z-10">
+                <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 backdrop-blur-sm">
+                    Tuyển tập ôn luyện
+                </span>
+                {% if is_fully_owned %}
+                <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 backdrop-blur-sm">
+                    Đã sở hữu trọn bộ
+                </span>
+                {% endif %}
+            </div>
+
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-outfit mb-4 relative z-10">
+                {{ bundle.title }}
+            </h1>
+
+            <p class="text-indigo-200/90 max-w-2xl text-base sm:text-lg font-light relative z-10 leading-relaxed">
+                {{ bundle.description|default:"Gói đề luyện thi chất lượng cao bao gồm nhiều phần kiến thức cốt lõi. Hãy thanh toán một lần duy nhất để truy cập trọn đời tất cả đề thi có trong gói." }}
+            </p>
+        </div>
+
+        <div class="p-8 sm:p-12">
+            <!-- Price and Buy Action Row -->
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-slate-50 border border-slate-100 p-6 rounded-2xl mb-10">
+                <div>
+                    <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Giá trọn bộ gói đề</span>
+                    <span class="text-3xl font-black text-indigo-600 font-outfit">
+                        {% if bundle.price == 0 %}Miễn phí{% else %}{{ bundle.price|floatformat:0 }} đ{% endif %}
+                    </span>
+                </div>
+                
+                <div>
+                    {% if is_fully_owned %}
+                        <div class="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-5 py-3.5 rounded-xl border border-emerald-100">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="font-bold text-sm">Bạn đã sở hữu gói đề thi này</span>
+                        </div>
+                    {% else %}
+                        {% if user.is_authenticated %}
+                            <form action="{% url 'buy_test_bundle' bundle.id %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl font-bold hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200 shadow-md hover:shadow-lg">
+                                    Thanh toán & Mua ngay
+                                    <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                </button>
+                            </form>
+                        {% else %}
+                            <a href="{% url 'login' %}?next={{ request.path }}" class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md">
+                                Đăng nhập để mua gói đề
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Test List Title -->
+            <h3 class="text-xl font-extrabold text-slate-900 font-outfit mb-6 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                Danh sách đề thi có trong gói ({{ tests_with_status|length }} đề)
+            </h3>
+
+            <!-- Test List Items -->
+            <div class="space-y-4">
+                {% for item in tests_with_status %}
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/30 transition-all duration-200">
+                    <div class="flex items-start gap-4">
+                        <span class="flex-shrink-0 w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm font-outfit">
+                            {{ forloop.counter }}
+                        </span>
+                        <div>
+                            <h4 class="font-extrabold text-slate-800 text-base font-outfit">{{ item.test.title }}</h4>
+                            <div class="flex items-center text-xs text-slate-400 mt-1 gap-2">
+                                <span>{{ item.test.duration }} phút</span>
+                                <span>•</span>
+                                <span>{{ item.test.parts.count }} phần lớn</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                        {% if item.is_owned %}
+                            <span class="inline-flex items-center text-xs text-emerald-600 font-bold bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100/50 mr-2">
+                                Đã sở hữu
+                            </span>
+                            <a href="{% url 'take_test' item.test.id %}" class="px-5 py-2 bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 rounded-xl transition-colors shadow-sm shadow-indigo-600/10">
+                                Bắt đầu làm bài
+                            </a>
+                        {% else %}
+                            <span class="inline-flex items-center text-xs text-slate-400 font-medium bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/20 mr-2">
+                                Chưa sở hữu
+                            </span>
+                            {% if not is_fully_owned %}
+                            <a href="{% url 'test_detail' item.test.id %}" class="px-4 py-2 border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 rounded-xl transition-colors">
+                                Mua lẻ ({{ item.test.price|floatformat:0 }}đ)
+                            </a>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center p-8 border border-dashed border-slate-200 rounded-2xl">
+                    <p class="text-slate-400 text-sm">Gói luyện thi này hiện tại đang được soạn thảo và chưa có đề thi cụ thể.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

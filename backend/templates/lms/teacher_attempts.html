@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}Quản lý bài làm học sinh - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-900 font-outfit tracking-tight">Quản lý bài làm của học sinh</h1>
+            <p class="text-sm text-gray-500 font-light mt-1">Hệ thống theo dõi kết quả thi, chấm bài, và quản trị lượt thi toàn hệ thống dành cho Giáo viên.</p>
+        </div>
+        <div class="flex-shrink-0 bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3 text-sm">
+            <span class="text-indigo-800 font-bold block font-outfit">Tổng số lượt làm bài:</span>
+            <span class="text-indigo-600 text-2xl font-black font-outfit">{{ attempts.count }}</span> lượt thi
+        </div>
+    </div>
+
+    <!-- Advanced Filter & Search Box -->
+    <div class="bg-white rounded-3xl shadow-md border border-gray-100 p-6 mb-8">
+        <form method="get" action="{% url 'teacher_attempts' %}" class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- Student Search -->
+            <div>
+                <label for="student" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Tìm kiếm học sinh</label>
+                <div class="relative rounded-md shadow-sm">
+                    <input type="text" name="student" id="student" value="{{ student_query }}" placeholder="Username hoặc họ tên..." class="block w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm">
+                </div>
+            </div>
+
+            <!-- Test Filter -->
+            <div>
+                <label for="test_id" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Đề thi / Kỳ thi</label>
+                <select name="test_id" id="test_id" class="block w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm bg-white">
+                    <option value="">-- Tất cả đề thi --</option>
+                    {% for t in tests %}
+                        <option value="{{ t.id }}" {% if t.id == selected_test_id %}selected{% endif %}>{{ t.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Exam Type Filter -->
+            <div>
+                <label for="type" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Hình thức thi</label>
+                <select name="type" id="type" class="block w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm bg-white">
+                    <option value="all" {% if selected_type == 'all' %}selected{% endif %}>Tất cả hình thức</option>
+                    <option value="official" {% if selected_type == 'official' %}selected{% endif %}>Kỳ thi chính thức</option>
+                    <option value="practice" {% if selected_type == 'practice' %}selected{% endif %}>Luyện tập tự do</option>
+                </select>
+            </div>
+
+            <!-- Filter Actions -->
+            <div class="flex items-end gap-3">
+                <button type="submit" class="flex-grow px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-sm hover:shadow flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    Lọc kết quả
+                </button>
+                <a href="{% url 'teacher_attempts' %}" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-colors text-center">
+                    Xóa lọc
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Main Manage Attempts Card -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+        {% if not attempts %}
+            <!-- No Attempts State -->
+            <div class="p-16 text-center">
+                <div class="w-20 h-20 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 font-outfit mb-2">Không tìm thấy lượt làm bài nào</h3>
+                <p class="text-slate-400 text-sm font-light max-w-sm mx-auto">Vui lòng điều chỉnh lại bộ lọc hoặc từ khóa tìm kiếm để tra cứu dữ liệu.</p>
+            </div>
+        {% else %}
+            <!-- Attempts Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Học sinh</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Đề thi</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Hình thức</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Thời gian bắt đầu / nộp</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Trạng thái</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Điểm số</th>
+                            <th class="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 bg-white">
+                        {% for attempt in attempts %}
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <!-- Student Info -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm uppercase">
+                                            {{ attempt.user.username|slice:":2" }}
+                                        </div>
+                                        <div class="ml-3">
+                                            <div class="text-sm font-bold text-slate-800">{{ attempt.user.username }}</div>
+                                            {% if attempt.user.first_name or attempt.user.last_name %}
+                                                <div class="text-xs text-slate-400">{{ attempt.user.first_name }} {{ attempt.user.last_name }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <!-- Test Title -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-slate-700 max-w-[200px] truncate" title="{{ attempt.test.title }}">
+                                        {{ attempt.test.title }}
+                                    </div>
+                                </td>
+                                <!-- Type (Official / Practice) -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if attempt.is_official %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
+                                            Chính thức
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100">
+                                            Luyện tập
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <!-- Start / End Time -->
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                                    <div>BĐ: {{ attempt.start_time|date:"d/m/Y H:i" }}</div>
+                                    {% if attempt.end_time %}
+                                        <div class="text-slate-400 mt-0.5">KT: {{ attempt.end_time|date:"d/m/Y H:i" }}</div>
+                                    {% endif %}
+                                </td>
+                                <!-- Status -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if attempt.end_time %}
+                                        <span class="inline-flex items-center text-xs font-bold text-emerald-600">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                            Đã hoàn thành
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center text-xs font-bold text-amber-500 animate-pulse">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5"></span>
+                                            Đang làm...
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <!-- Score -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if attempt.end_time %}
+                                        <div class="flex items-baseline space-x-1">
+                                            <span class="text-sm font-bold text-indigo-600">{{ attempt.total_score }}</span>
+                                            <span class="text-xs text-slate-400">/ {{ attempt.test.total_possible_points }}</span>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-xs text-slate-400 italic">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <!-- Actions -->
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div class="inline-flex items-center gap-2">
+                                        <!-- Review Button -->
+                                        <a href="{% url 'review_attempt' attempt.id %}" class="inline-flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition-colors">
+                                            Xem bài làm
+                                        </a>
+                                        <!-- Delete Button -->
+                                        <a href="{% url 'delete_attempt' attempt.id %}" onclick="return confirm('Bạn có chắc chắn muốn xóa lượt làm bài của học sinh {{ attempt.user.username }}? Hành động này sẽ xóa vĩnh viễn kết quả lượt thi này và cho phép học sinh thi lại đề này.');" class="inline-flex items-center px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-lg text-xs transition-colors">
+                                            Xóa lượt thi
+                                            <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

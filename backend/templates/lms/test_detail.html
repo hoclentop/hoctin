@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ test.title }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+    <!-- Glassmorphic Main Card -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl">
+        
+        <!-- Header Banner -->
+        <div class="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-8 sm:p-12 text-white">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(99,102,241,0.15),transparent_50%)]"></div>
+            
+            <!-- Badges -->
+            <div class="flex flex-wrap gap-3 mb-6 relative z-10">
+                {% if test.is_official %}
+                    <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase bg-red-500/20 text-red-300 border border-red-500/30 backdrop-blur-sm">
+                        <span class="w-2 h-2 mr-2 rounded-full bg-red-400 animate-pulse"></span>
+                        Kỳ thi chính thức
+                    </span>
+                    {% if is_upcoming %}
+                        <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/30 backdrop-blur-sm">
+                            Sắp diễn ra
+                        </span>
+                    {% elif is_ongoing %}
+                        <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 backdrop-blur-sm animate-pulse">
+                            Đang diễn ra
+                        </span>
+                    {% elif is_finished %}
+                        <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-gray-500/20 text-gray-300 border border-gray-500/30 backdrop-blur-sm">
+                            Đã kết thúc
+                        </span>
+                    {% endif %}
+                {% else %}
+                    <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-blue-500/20 text-blue-300 border border-blue-500/30 backdrop-blur-sm">
+                        Luyện tập tự do
+                    </span>
+                {% endif %}
+            </div>
+            
+            <!-- Test Title -->
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-outfit mb-4 relative z-10 drop-shadow-sm">
+                {{ test.title }}
+            </h1>
+            
+            <p class="text-indigo-200/90 max-w-2xl text-base sm:text-lg font-light relative z-10">
+                Hệ thống thi lập trình trực tuyến tích hợp. Chuẩn bị đầy đủ kiến thức và thiết bị trước khi bắt đầu làm bài.
+            </p>
+            
+            {% if user.is_superuser or test.creator == user %}
+                <div class="mt-6 flex flex-wrap gap-3 relative z-10">
+                    <a href="{% url 'edit_test_basic' test.id %}" class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm transition-all duration-200 shadow-sm">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        Sửa cấu hình cơ bản
+                    </a>
+                    {% if not test.dynamictest %}
+                    <a href="{% url 'manage_test_structure' test.id %}" class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-500/30 backdrop-blur-sm transition-all duration-200 shadow-sm">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        Quản lý cấu trúc đề
+                    </a>
+                    {% endif %}
+                    <form action="{% url 'duplicate_test' test.id %}" method="post" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold bg-amber-600/80 hover:bg-amber-600 text-white border border-amber-500/30 backdrop-blur-sm transition-all duration-200 shadow-sm gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
+                            </svg>
+                            Nhân đôi đề thi
+                        </button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="p-8 sm:p-12">
+            <!-- Grid Key Metrics -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-12">
+                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 hover:border-indigo-200 transition-colors">
+                    <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Thời gian làm bài</span>
+                    <span class="text-lg font-bold text-slate-800 font-outfit">{{ test.duration }} phút</span>
+                </div>
+                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 hover:border-indigo-200 transition-colors">
+                    <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Số phần bài thi</span>
+                    <span class="text-lg font-bold text-slate-800 font-outfit">
+                        {% if test.dynamictest %}
+                            {{ test.dynamictest.max_questions }} câu hỏi
+                        {% else %}
+                            {{ test.parts.count }} phần lớn
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 hover:border-indigo-200 transition-colors">
+                    <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Lệ phí dự thi</span>
+                    <span class="text-lg font-bold text-indigo-600 font-outfit">
+                        {% if test.price == 0 %}Miễn phí{% else %}{{ test.price }} đ{% endif %}
+                    </span>
+                </div>
+                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 hover:border-indigo-200 transition-colors">
+                    <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Hình thức thi</span>
+                    <span class="text-lg font-bold text-slate-800 font-outfit">
+                        {% if test.is_official %}Tính điểm Rank{% else %}Luyện tập độc lập{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            {% if test.is_official %}
+                <!-- OFFICIAL EXAM FLOW -->
+                
+                <div class="border-t border-slate-100 pt-8">
+                    {% if not is_registered %}
+                        <!-- NOT REGISTERED YET -->
+                        {% if not is_finished %}
+                            <!-- Show regulations and registration form -->
+                            <div class="bg-indigo-50/50 rounded-2xl p-6 border border-indigo-100/80 mb-8">
+                                <h3 class="text-lg font-bold text-indigo-950 font-outfit flex items-center mb-4">
+                                    <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Quy chế phòng thi (Bắt buộc phải đọc)
+                                </h3>
+                                <div class="prose max-w-none text-slate-600 text-sm leading-relaxed max-h-60 overflow-y-auto pr-2">
+                                    {% if test.regulation %}
+                                        {{ test.regulation.content|linebreaks }}
+                                    {% else %}
+                                        <p>1. Không được phép sử dụng bất kỳ công cụ tìm kiếm, mã nguồn có sẵn hoặc công cụ AI nào trong suốt thời gian làm bài thi chính thức.</p>
+                                        <p>2. Không sao chép lời giải hoặc mã nguồn của người khác. Các bài thi có sự tương đồng lớn sẽ bị phát hiện tự động bởi phần mềm chấm bài và hủy kết quả.</p>
+                                        <p>3. Không đổi tab trình duyệt. Việc đổi tab quá nhiều lần sẽ cấu thành hành vi vi phạm kỷ luật phòng thi.</p>
+                                        <p>4. Đảm bảo nguồn điện và kết nối Internet ổn định trước khi tiến hành nhấn bắt đầu.</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <!-- Registration Form -->
+                            <form action="{% url 'register_test' test.id %}" method="post" class="space-y-6">
+                                {% csrf_token %}
+                                <label class="relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-all select-none group">
+                                    <input type="checkbox" id="agree_rules" name="agree_rules" class="mt-1 w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                                    <div class="text-sm">
+                                        <p class="font-bold text-slate-800 group-hover:text-indigo-950 transition-colors">Tôi cam kết đồng ý với Quy chế phòng thi</p>
+                                        <p class="text-slate-500 font-light mt-0.5">Tôi hiểu rằng nếu vi phạm quy chế, bài thi sẽ bị hủy kết quả ngay lập tức.</p>
+                                    </div>
+                                </label>
+                                
+                                <div class="flex flex-col sm:flex-row gap-4 items-center pt-2">
+                                    <button type="submit" id="btn_register" disabled class="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 text-white rounded-xl font-bold text-center hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg">
+                                        {% if test.price > 0 %}
+                                            Thanh toán & Đăng ký ({{ test.price }} đ)
+                                        {% else %}
+                                            Đăng ký dự thi (Miễn phí)
+                                        {% endif %}
+                                    </button>
+                                    
+                                    {% if test.price > 0 %}
+                                        <span class="text-xs text-slate-400 font-light">Số tiền sẽ được khấu trừ trực tiếp vào ví nội bộ của bạn.</span>
+                                    {% endif %}
+                                </div>
+                            </form>
+                        {% else %}
+                            <!-- Exam finished, not registered -->
+                            <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100 text-center">
+                                {% if test.price > 0 %}
+                                    <p class="text-slate-500 font-medium mb-4">Kỳ thi này đã kết thúc. Bạn có thể mua đề thi này để làm bài luyện tập.</p>
+                                    <form action="{% url 'register_test' test.id %}" method="post" class="inline-block">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="agree_rules" value="on">
+                                        <button type="submit" class="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors shadow-sm">
+                                            Mua đề để luyện tập ({{ test.price }} đ)
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <p class="text-slate-500 font-medium mb-4">Kỳ thi này đã kết thúc. Bạn có thể tự do làm bài luyện tập (Miễn phí).</p>
+                                    <a href="{% url 'take_test' test.id %}" class="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-sm">
+                                        Làm bài luyện tập
+                                    </a>
+                                {% endif %}
+                                <a href="{% url 'leaderboard' test.id %}" class="ml-4 inline-flex items-center px-6 py-2.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors">
+                                    Xem bảng xếp hạng
+                                </a>
+                            </div>
+                        {% endif %}
+                    
+                    {% else %}
+                        <!-- REGISTERED -->
+                        <div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-4 mb-8">
+                            <span class="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </span>
+                            <div>
+                                <h4 class="font-bold text-emerald-950 text-base font-outfit">Đăng ký dự thi thành công!</h4>
+                                <p class="text-sm text-emerald-700/90 font-light mt-0.5">Thời điểm đăng ký: {{ registration.registered_at|date:"d/m/Y H:i" }}. Bạn đã sẵn sàng để tham gia kỳ thi.</p>
+                            </div>
+                        </div>
+
+                        {% if is_upcoming %}
+                            <!-- Upcoming countdown -->
+                            <div class="bg-slate-900 rounded-2xl p-8 text-center text-white relative overflow-hidden">
+                                <div class="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(99,102,241,0.12),transparent_60%)]"></div>
+                                <h3 class="text-lg font-medium text-indigo-200 mb-2 relative z-10">Kỳ thi sẽ bắt đầu sau</h3>
+                                
+                                <!-- Countdown layout -->
+                                <div id="countdown" class="flex justify-center gap-4 my-6 relative z-10">
+                                    <div class="bg-white/10 backdrop-blur-md rounded-xl p-3 sm:p-4 min-w-[70px]">
+                                        <span id="days" class="block text-2xl sm:text-3xl font-extrabold tracking-tight font-outfit">00</span>
+                                        <span class="block text-[10px] text-indigo-200 uppercase mt-1">Ngày</span>
+                                    </div>
+                                    <div class="bg-white/10 backdrop-blur-md rounded-xl p-3 sm:p-4 min-w-[70px]">
+                                        <span id="hours" class="block text-2xl sm:text-3xl font-extrabold tracking-tight font-outfit">00</span>
+                                        <span class="block text-[10px] text-indigo-200 uppercase mt-1">Giờ</span>
+                                    </div>
+                                    <div class="bg-white/10 backdrop-blur-md rounded-xl p-3 sm:p-4 min-w-[70px]">
+                                        <span id="minutes" class="block text-2xl sm:text-3xl font-extrabold tracking-tight font-outfit">00</span>
+                                        <span class="block text-[10px] text-indigo-200 uppercase mt-1">Phút</span>
+                                    </div>
+                                    <div class="bg-white/10 backdrop-blur-md rounded-xl p-3 sm:p-4 min-w-[70px] border border-indigo-500/30">
+                                        <span id="seconds" class="block text-2xl sm:text-3xl font-extrabold tracking-tight font-outfit text-indigo-300">00</span>
+                                        <span class="block text-[10px] text-indigo-200 uppercase mt-1">Giây</span>
+                                    </div>
+                                </div>
+                                
+                                <p class="text-sm text-slate-400 font-light mt-2 relative z-10">
+                                    Thời gian thi chính thức: {{ test.start_time|date:"H:i, d/m/Y" }}
+                                </p>
+                            </div>
+                        {% elif is_ongoing %}
+                            <!-- Ongoing - Play button -->
+                            <div class="text-center pt-4">
+                                <a href="{% url 'take_test' test.id %}" class="inline-flex items-center px-10 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl font-bold hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200 shadow-lg shadow-indigo-600/20 hover:shadow-xl hover:shadow-indigo-600/30 hover:scale-[1.02] transform">
+                                    Bắt đầu làm bài thi ngay
+                                    <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                                </a>
+                            </div>
+                        {% elif is_finished %}
+                            <!-- Finished -->
+                            <div class="bg-slate-50 border border-slate-100 rounded-2xl p-8 text-center">
+                                <h4 class="font-bold text-slate-800 font-outfit text-lg mb-2">Kỳ thi chính thức đã kết thúc</h4>
+                                <p class="text-sm text-slate-500 font-light max-w-md mx-auto mb-6">Kết quả thi đã được ghi nhận. Bạn có thể xem lại bài làm, theo dõi bảng điểm xếp hạng hoặc làm bài luyện tập ôn tập lại.</p>
+                                <div class="flex flex-wrap justify-center gap-4">
+                                    <a href="{% url 'take_test' test.id %}" class="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors">
+                                        Làm bài luyện tập lại
+                                    </a>
+                                    <a href="{% url 'leaderboard' test.id %}" class="px-6 py-2.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors">
+                                        Xem bảng xếp hạng
+                                    </a>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+            {% else %}
+                <!-- PRACTICE EXAM FLOW (FREE PLAY) -->
+                <div class="border-t border-slate-100 pt-8 flex flex-col sm:flex-row gap-6 items-center justify-between">
+                    <div>
+                        <h4 class="font-bold text-slate-800 font-outfit text-base">Luyện tập tự do</h4>
+                        <p class="text-sm text-slate-500 font-light mt-0.5">Không bị giới hạn thời gian mở đề. Bạn có thể làm bài bất cứ lúc nào để ôn tập kiến thức.</p>
+                    </div>
+                    
+                    <div>
+                        {% if test.price == 0 or is_registered %}
+                            <a href="{% url 'take_test' test.id %}" class="inline-flex items-center px-8 py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg">
+                                Làm bài luyện tập
+                            </a>
+                        {% else %}
+                            <form action="{% url 'register_test' test.id %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="agree_rules" value="on">
+                                <button type="submit" class="px-8 py-3.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-md hover:shadow-lg">
+                                    Mua đề thi ({{ test.price }} đ)
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+{% if test.is_official and is_registered and is_upcoming %}
+<!-- Countdown Javascript logic -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Lấy thời gian bắt đầu của Django chuyển qua Javascript (ISO format)
+        const startTimeStr = "{{ test.start_time|date:'c' }}";
+        const startTime = new Date(startTimeStr).getTime();
+        
+        const daysEl = document.getElementById("days");
+        const hoursEl = document.getElementById("hours");
+        const minutesEl = document.getElementById("minutes");
+        const secondsEl = document.getElementById("seconds");
+        
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = startTime - now;
+            
+            if (distance < 0) {
+                clearInterval(interval);
+                // Tự động reload lại trang để kích hoạt nút bắt đầu làm bài khi đến giờ thi
+                window.location.reload();
+                return;
+            }
+            
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            
+            daysEl.innerText = String(days).padStart(2, '0');
+            hoursEl.innerText = String(hours).padStart(2, '0');
+            minutesEl.innerText = String(minutes).padStart(2, '0');
+            secondsEl.innerText = String(seconds).padStart(2, '0');
+        }
+        
+        updateCountdown();
+        const interval = setInterval(updateCountdown, 1000);
+    });
+</script>
+{% endif %}
+
+{% if test.is_official and not is_registered and not is_finished %}
+<!-- Form Checkbox Validation Javascript -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const checkbox = document.getElementById("agree_rules");
+        const button = document.getElementById("btn_register");
+        
+        checkbox.addEventListener("change", function() {
+            button.disabled = !checkbox.checked;
+        });
+    });
+</script>
+{% endif %}
+
+{% endblock %}

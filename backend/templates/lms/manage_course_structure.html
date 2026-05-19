@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Quản lý cấu trúc bài học: {{ course.title }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-12">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8 pb-6 border-b border-gray-100">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 font-outfit">Quản lý bài học</h1>
+            <p class="text-gray-500 mt-1">Khóa học: <span class="font-semibold text-gray-700">{{ course.title }}</span></p>
+        </div>
+        <div class="flex gap-3 mt-4 md:mt-0">
+            <a href="{% url 'course_detail' course.id %}" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">
+                Xem chi tiết khóa học
+            </a>
+            <a href="{% url 'create_lesson' course.id %}" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Thêm bài học mới
+            </a>
+        </div>
+    </div>
+
+    <!-- Table of Lessons -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-100">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Thứ tự</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tiêu đề bài học</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Loại nội dung</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Thông tin liên kết</th>
+                        <th scope="col" class="px-6 py-4 class-right text-xs font-bold text-gray-500 uppercase tracking-wider w-40 text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for lesson in lessons %}
+                    <tr class="hover:bg-gray-50/80 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-400">
+                            {{ lesson.order_index }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-bold text-gray-900">{{ lesson.title }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold
+                                {% if lesson.lesson_type == 'THEORY' %}bg-blue-50 text-blue-700
+                                {% elif lesson.lesson_type == 'EXERCISE' %}bg-green-50 text-green-700
+                                {% else %}bg-purple-50 text-purple-700{% endif %}">
+                                {{ lesson.get_lesson_type_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {% if lesson.lesson_type == 'THEORY' %}
+                                {% if lesson.video_url %}
+                                    <span class="text-xs font-medium text-indigo-600 truncate max-w-xs block">Video: {{ lesson.video_url }}</span>
+                                {% else %}
+                                    <span class="text-xs text-gray-400 italic">Chỉ có lý thuyết</span>
+                                {% endif %}
+                            {% elif lesson.lesson_type == 'EXERCISE' %}
+                                <span class="text-xs font-semibold text-green-600 block">Mã bài: {{ lesson.external_problem_code }}</span>
+                                <a href="{{ lesson.external_judge_link }}" target="_blank" class="text-xs text-indigo-500 hover:underline">Link bài tập &rarr;</a>
+                            {% else %}
+                                {% if lesson.test %}
+                                    <span class="text-xs font-bold text-purple-600">Đề: {{ lesson.test.title }}</span>
+                                {% else %}
+                                    <span class="text-xs text-red-500 italic">Chưa liên kết đề thi</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                            <div class="flex justify-center items-center gap-3">
+                                <a href="{% url 'edit_lesson' lesson.id %}" class="text-indigo-600 hover:text-indigo-900 font-bold">Sửa</a>
+                                <span class="text-gray-200">|</span>
+                                <form method="POST" action="{% url 'delete_lesson' lesson.id %}" onsubmit="return confirm('Bạn có chắc chắn muốn xóa bài học này không?');" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-red-600 hover:text-red-900 font-bold">Xóa</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                            Chưa có bài học nào trong khóa học này. Hãy thêm bài học đầu tiên!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
