@@ -16,7 +16,8 @@ from .models import (
     Course, Test, DynamicTest, CourseBundle, TestBundle, 
     CourseOwnership, TestOwnership, Lesson, LessonProgress,
     WalletTransaction, Profile, Attempt, SharedInstruction, TestPartInstruction, TestQuestion,
-    AttemptAnswer, Choice, Question, QuestionGroup, TestRegulation, EquivalentQuestionGroup
+    AttemptAnswer, Choice, Question, QuestionGroup, TestRegulation, EquivalentQuestionGroup,
+    BankAccount
 )
 from .services import ScoringService, JudgeSyncService
 import random
@@ -47,15 +48,85 @@ def register(request):
     return render(request, 'registration/register.html', {'form': form})
 
 def course_list(request):
-    courses = Course.objects.all()
-    return render(request, 'lms/course_list.html', {'courses': courses})
+    import datetime
+    from django.utils import timezone
+    
+    q = request.GET.get('q', '').strip()
+    
+    # 1. Tìm kiếm kép nếu có tham số 'q'
+    search_courses = None
+    search_tests = None
+    if q:
+        search_courses = Course.objects.filter(
+            Q(title__icontains=q) | Q(description__icontains=q)
+        ).distinct()
+        search_tests = Test.objects.filter(
+            test_type='STANDALONE'
+        ).filter(
+            Q(title__icontains=q)
+        ).distinct()
+        
+    # 2. Lấy dữ liệu mặc định (ngẫu nhiên)
+    random_courses = Course.objects.order_by('?')[:3]
+    random_tests = Test.objects.filter(test_type='STANDALONE').order_by('?')[:3]
+    
+    # 3. Lấy Nhật ký Hoạt động học tập thời gian thực
+    # Lấy 5 tiến độ hoàn thành bài học gần nhất
+    recent_progress = LessonProgress.objects.filter(
+        is_completed=True
+    ).select_related('user', 'lesson', 'lesson__course').order_by('-completed_at')[:5]
+    
+    # Lấy 5 lượt làm bài thi gần nhất
+    recent_attempts = Attempt.objects.select_related('user', 'test').order_by('-start_time')[:5]
+    
+    activities = []
+    for p in recent_progress:
+        activities.append({
+            'user': p.user,
+            'type': 'lesson',
+            'lesson': p.lesson,
+            'course': p.lesson.course,
+            'timestamp': p.completed_at or timezone.now(),
+        })
+        
+    for a in recent_attempts:
+        activities.append({
+            'user': a.user,
+            'type': 'attempt',
+            'test': a.test,
+            'score': a.total_score,
+            'is_completed': a.end_time is not None,
+            'timestamp': a.start_time,
+        })
+        
+    # Gộp và sắp xếp theo timestamp giảm dần (mới nhất lên đầu)
+    activities.sort(key=lambda x: x['timestamp'] if isinstance(x['timestamp'], datetime.datetime) else timezone.now(), reverse=True)
+    activities = activities[:6]
+    
+    return render(request, 'lms/course_list.html', {
+        'q': q,
+        'search_courses': search_courses,
+        'search_tests': search_tests,
+        'random_courses': random_courses,
+        'random_tests': random_tests,
+        'activities': activities,
+    })
+
+def all_courses(request):
+    courses = Course.objects.all().order_by('-id')
+    return render(request, 'lms/all_courses.html', {
+        'courses': courses,
+    })
 
 def course_detail(request, course_id):
     course = get_object_or_404(Course, id=course_id)
     is_owned = False
     first_lesson_id = None
+    has_pending_transaction = False
+    ownership = None
     if request.user.is_authenticated:
-        is_owned = CourseOwnership.objects.filter(user=request.user, course=course).exists()
+        ownership = CourseOwnership.objects.filter(user=request.user, course=course).first()
+        is_owned = ownership is not None and not ownership.is_expired
         if is_owned:
             completed_ids = LessonProgress.objects.filter(user=request.user, is_completed=True).values_list('lesson_id', flat=True)
             first_incomplete = course.lessons.exclude(id__in=completed_ids).order_by('order_index').first()
@@ -69,6 +140,12 @@ def course_detail(request, course_id):
             first_l = course.lessons.order_by('order_index').first()
             if first_l:
                 first_lesson_id = first_l.id
+                
+            has_pending_transaction = WalletTransaction.objects.filter(
+                user=request.user,
+                course=course,
+                status='PENDING'
+            ).exists()
     else:
         first_l = course.lessons.order_by('order_index').first()
         if first_l:
@@ -77,7 +154,9 @@ def course_detail(request, course_id):
     return render(request, 'lms/course_detail.html', {
         'course': course,
         'is_owned': is_owned,
-        'first_lesson_id': first_lesson_id
+        'first_lesson_id': first_lesson_id,
+        'has_pending_transaction': has_pending_transaction,
+        'ownership': ownership,
     })
 
 def test_list(request):
@@ -110,6 +189,14 @@ def test_detail(request, test_id):
         else:
             is_ongoing = True
             
+    has_pending_transaction = False
+    if request.user.is_authenticated and not is_registered:
+        has_pending_transaction = WalletTransaction.objects.filter(
+            user=request.user,
+            test=test,
+            status='PENDING'
+        ).exists()
+            
     return render(request, 'lms/test_detail.html', {
         'test': test,
         'is_registered': is_registered,
@@ -118,6 +205,7 @@ def test_detail(request, test_id):
         'is_ongoing': is_ongoing,
         'is_finished': is_finished,
         'now': now,
+        'has_pending_transaction': has_pending_transaction,
     })
 
 from django import forms
@@ -125,11 +213,18 @@ from django import forms
 class CourseForm(forms.ModelForm):
     class Meta:
         model = Course
-        fields = ['title', 'description', 'price', 'learning_mode', 'thumbnail']
+        fields = ['title', 'description', 'price', 'duration_days', 'learning_mode', 'thumbnail']
+        labels = {
+            'duration_days': 'Thời hạn học (ngày)',
+        }
+        help_texts = {
+            'duration_days': 'Số ngày được học kể từ lúc mua/duyệt. Nhập 0 hoặc để trống nếu muốn học trọn đời.',
+        }
         widgets = {
             'title': forms.TextInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
             'description': forms.Textarea(attrs={'rows': 5, 'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'}),
             'price': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'}),
+            'duration_days': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'}),
             'learning_mode': forms.Select(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'}),
             'thumbnail': forms.FileInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'}),
         }
@@ -302,13 +397,25 @@ def delete_lesson(request, lesson_id):
 @login_required
 def buy_course(request, course_id):
     course = get_object_or_404(Course, id=course_id)
-    # Check if already owned
-    if CourseOwnership.objects.filter(user=request.user, course=course).exists():
-        messages.info(request, "Bạn đã sở hữu khóa học này.")
+    # Check if already owned and active
+    if CourseOwnership.has_active_ownership(request.user, course):
+        messages.info(request, "Bạn đã sở hữu khóa học này và vẫn còn hạn học.")
         return redirect('course_detail', course_id=course.id)
         
+    expires_at = None
+    if course.duration_days and course.duration_days > 0:
+        expires_at = timezone.now() + timezone.timedelta(days=course.duration_days)
+
     if course.price == 0:
-        CourseOwnership.objects.create(user=request.user, course=course)
+        ownership, created = CourseOwnership.objects.get_or_create(
+            user=request.user, 
+            course=course,
+            defaults={'expires_at': expires_at}
+        )
+        if not created:
+            ownership.expires_at = expires_at
+            ownership.purchased_at = timezone.now()
+            ownership.save()
         messages.success(request, f"Đăng ký khóa học '{course.title}' thành công.")
     else:
         profile = request.user.profile
@@ -320,7 +427,15 @@ def buy_course(request, course_id):
             profile.wallet_balance -= course.price
             profile.save()
             
-            CourseOwnership.objects.create(user=request.user, course=course)
+            ownership, created = CourseOwnership.objects.get_or_create(
+                user=request.user, 
+                course=course,
+                defaults={'expires_at': expires_at}
+            )
+            if not created:
+                ownership.expires_at = expires_at
+                ownership.purchased_at = timezone.now()
+                ownership.save()
             
             WalletTransaction.objects.create(
                 user=request.user,
@@ -336,9 +451,9 @@ def lesson_detail(request, course_id, lesson_id):
     course = get_object_or_404(Course, id=course_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, course=course)
     
-    # 1. Check ownership
-    if not CourseOwnership.objects.filter(user=request.user, course=course).exists():
-        messages.error(request, "Bạn cần đăng ký khóa học này trước khi học bài.")
+    # 1. Check ownership and expiry
+    if not CourseOwnership.has_active_ownership(request.user, course):
+        messages.error(request, "Quyền học khóa học này đã hết hạn hoặc bạn chưa đăng ký khóa học.")
         return redirect('course_detail', course_id=course.id)
         
     # 2. Sequential Mode check
@@ -396,8 +511,8 @@ def lesson_detail(request, course_id, lesson_id):
 @login_required
 def complete_lesson_ajax(request, lesson_id):
     lesson = get_object_or_404(Lesson, id=lesson_id)
-    if not CourseOwnership.objects.filter(user=request.user, course=lesson.course).exists():
-        return JsonResponse({'success': False, 'message': 'Không có quyền truy cập.'}, status=403)
+    if not CourseOwnership.has_active_ownership(request.user, lesson.course):
+        return JsonResponse({'success': False, 'message': 'Không có quyền truy cập hoặc khóa học đã hết hạn.'}, status=403)
         
     progress, created = LessonProgress.objects.update_or_create(
         user=request.user,
@@ -419,8 +534,8 @@ def complete_lesson_ajax(request, lesson_id):
 @login_required
 def sync_lesson_progress_ajax(request, lesson_id):
     lesson = get_object_or_404(Lesson, id=lesson_id)
-    if not CourseOwnership.objects.filter(user=request.user, course=lesson.course).exists():
-        return JsonResponse({'success': False, 'message': 'Không có quyền truy cập.'}, status=403)
+    if not CourseOwnership.has_active_ownership(request.user, lesson.course):
+        return JsonResponse({'success': False, 'message': 'Không có quyền truy cập hoặc khóa học đã hết hạn.'}, status=403)
         
     if lesson.lesson_type != 'EXERCISE' or not lesson.external_problem_code:
         return JsonResponse({'success': False, 'message': 'Bài học này không liên kết bài tập ngoại vi.'}, status=400)
@@ -1013,11 +1128,23 @@ def submit_test(request, attempt_id):
         # Tự động hoàn thành bài kiểm tra liên kết trong khóa học
         associated_lessons = Lesson.objects.filter(lesson_type='TEST', test=attempt.test)
         for lesson in associated_lessons:
-            LessonProgress.objects.update_or_create(
-                user=request.user,
-                lesson=lesson,
-                defaults={'is_completed': True, 'completed_at': timezone.now()}
-            )
+            # Nếu là khóa học tuần tự, yêu cầu học sinh làm đúng 100% điểm bài thi mới được hoàn thành
+            if lesson.course.learning_mode == 'SEQUENTIAL':
+                max_score = lesson.test.total_possible_points
+                is_perfect = attempt.total_score >= (max_score - 1e-5)
+                if is_perfect:
+                    LessonProgress.objects.update_or_create(
+                        user=request.user,
+                        lesson=lesson,
+                        defaults={'is_completed': True, 'completed_at': timezone.now()}
+                    )
+            else:
+                # Với khóa học tự do, chỉ cần nộp bài là hoàn thành
+                LessonProgress.objects.update_or_create(
+                    user=request.user,
+                    lesson=lesson,
+                    defaults={'is_completed': True, 'completed_at': timezone.now()}
+                )
             
         messages.success(request, "Nộp bài thành công!")
         lesson_id = request.GET.get('lesson_id')
@@ -1508,15 +1635,23 @@ def admin_transactions(request):
     if status_filter not in valid_statuses:
         status_filter = 'PENDING'
         
-    transactions = WalletTransaction.objects.filter(transaction_type='DEPOSIT').order_by('-created_at')
+    base_transactions = WalletTransaction.objects.filter(
+        Q(transaction_type='DEPOSIT') |
+        Q(course__isnull=False) |
+        Q(course_bundle__isnull=False) |
+        Q(test__isnull=False) |
+        Q(test_bundle__isnull=False)
+    )
+    
+    transactions = base_transactions.order_by('-created_at')
     
     if status_filter != 'ALL':
         transactions = transactions.filter(status=status_filter)
         
     # Thống kê giao dịch
-    pending_count = WalletTransaction.objects.filter(transaction_type='DEPOSIT', status='PENDING').count()
-    approved_count = WalletTransaction.objects.filter(transaction_type='DEPOSIT', status='APPROVED').count()
-    rejected_count = WalletTransaction.objects.filter(transaction_type='DEPOSIT', status='REJECTED').count()
+    pending_count = base_transactions.filter(status='PENDING').count()
+    approved_count = base_transactions.filter(status='APPROVED').count()
+    rejected_count = base_transactions.filter(status='REJECTED').count()
     
     return render(request, 'lms/admin_transactions.html', {
         'transactions': transactions,
@@ -1535,21 +1670,27 @@ def approve_transaction_admin(request, tx_id):
         return redirect('course_list')
         
     if request.method == 'POST':
-        tx = get_object_or_404(WalletTransaction, id=tx_id, transaction_type='DEPOSIT')
+        tx = get_object_or_404(
+            WalletTransaction.objects.filter(
+                Q(transaction_type='DEPOSIT') |
+                Q(course__isnull=False) |
+                Q(course_bundle__isnull=False) |
+                Q(test__isnull=False) |
+                Q(test_bundle__isnull=False)
+            ),
+            id=tx_id
+        )
         if tx.status != 'PENDING':
             messages.error(request, "Giao dịch này đã được xử lý từ trước.")
             return redirect('admin_transactions')
             
-        with transaction.atomic():
-            profile = tx.user.profile
-            profile.wallet_balance += tx.amount
-            profile.save()
-            
-            tx.status = 'APPROVED'
-            tx.save()
+        tx.approve()
             
         formatted_amount = f"{int(tx.amount):,}"
-        messages.success(request, f"Đã phê duyệt nạp {formatted_amount}đ cho tài khoản {tx.user.username} thành công.")
+        if tx.transaction_type == 'DEPOSIT':
+            messages.success(request, f"Đã phê duyệt nạp {formatted_amount}đ cho tài khoản {tx.user.username} thành công.")
+        else:
+            messages.success(request, f"Đã phê duyệt đơn thanh toán mua sản phẩm #{tx.id} của {tx.user.username} thành công.")
         
     return redirect('admin_transactions')
 
@@ -1561,7 +1702,16 @@ def reject_transaction_admin(request, tx_id):
         return redirect('course_list')
         
     if request.method == 'POST':
-        tx = get_object_or_404(WalletTransaction, id=tx_id, transaction_type='DEPOSIT')
+        tx = get_object_or_404(
+            WalletTransaction.objects.filter(
+                Q(transaction_type='DEPOSIT') |
+                Q(course__isnull=False) |
+                Q(course_bundle__isnull=False) |
+                Q(test__isnull=False) |
+                Q(test_bundle__isnull=False)
+            ),
+            id=tx_id
+        )
         if tx.status != 'PENDING':
             messages.error(request, "Giao dịch này đã được xử lý từ trước.")
             return redirect('admin_transactions')
@@ -1569,7 +1719,7 @@ def reject_transaction_admin(request, tx_id):
         tx.status = 'REJECTED'
         tx.save()
         
-        messages.success(request, f"Đã từ chối giao dịch nạp tiền #{tx.id} của {tx.user.username}.")
+        messages.success(request, f"Đã từ chối giao dịch #{tx.id} của {tx.user.username}.")
         
     return redirect('admin_transactions')
 
@@ -3424,10 +3574,19 @@ def test_bundle_detail(request, bundle_id):
         
     is_fully_owned = (tests.exists() and owned_count == tests.count())
     
+    has_pending_transaction = False
+    if request.user.is_authenticated and not is_fully_owned:
+        has_pending_transaction = WalletTransaction.objects.filter(
+            user=request.user,
+            test_bundle=bundle,
+            status='PENDING'
+        ).exists()
+    
     return render(request, 'lms/test_bundle_detail.html', {
         'bundle': bundle,
         'tests_with_status': tests_with_status,
-        'is_fully_owned': is_fully_owned
+        'is_fully_owned': is_fully_owned,
+        'has_pending_transaction': has_pending_transaction,
     })
 
 
@@ -3490,7 +3649,12 @@ def course_bundle_list(request):
             b.is_owned = False
             continue
         if request.user.is_authenticated:
-            owned_count = CourseOwnership.objects.filter(user=request.user, course__in=all_courses).count()
+            owned_count = CourseOwnership.objects.filter(
+                user=request.user, 
+                course__in=all_courses
+            ).filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+            ).count()
             b.is_owned = (owned_count == all_courses.count())
         else:
             b.is_owned = False
@@ -3509,7 +3673,7 @@ def course_bundle_detail(request, bundle_id):
         original_total += c.price
         is_owned = False
         if request.user.is_authenticated:
-            is_owned = CourseOwnership.objects.filter(user=request.user, course=c).exists()
+            is_owned = CourseOwnership.has_active_ownership(request.user, c)
             if is_owned:
                 owned_count += 1
         courses_with_status.append({
@@ -3520,12 +3684,21 @@ def course_bundle_detail(request, bundle_id):
     is_fully_owned = (courses.exists() and owned_count == courses.count())
     saving_amount = max(0, original_total - bundle.price)
     
+    has_pending_transaction = False
+    if request.user.is_authenticated and not is_fully_owned:
+        has_pending_transaction = WalletTransaction.objects.filter(
+            user=request.user,
+            course_bundle=bundle,
+            status='PENDING'
+        ).exists()
+    
     return render(request, 'lms/course_bundle_detail.html', {
         'bundle': bundle,
         'courses_with_status': courses_with_status,
         'is_fully_owned': is_fully_owned,
         'original_total': original_total,
-        'saving_amount': saving_amount
+        'saving_amount': saving_amount,
+        'has_pending_transaction': has_pending_transaction,
     })
 
 
@@ -3541,7 +3714,12 @@ def buy_course_bundle(request, bundle_id):
         return redirect('course_bundle_detail', bundle_id=bundle.id)
         
     # Kiểm tra xem người dùng đã sở hữu toàn bộ các khóa học trong gói chưa
-    owned_count = CourseOwnership.objects.filter(user=request.user, course__in=courses).count()
+    owned_count = CourseOwnership.objects.filter(
+        user=request.user, 
+        course__in=courses
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+    ).count()
     if owned_count == courses.count():
         messages.info(request, "Bạn đã sở hữu toàn bộ khóa học trong gói này rồi.")
         return redirect('course_bundle_detail', bundle_id=bundle.id)
@@ -3557,10 +3735,18 @@ def buy_course_bundle(request, bundle_id):
         
         # Cấp quyền sở hữu CourseOwnership cho tất cả khóa học có trong gói
         for course in courses:
-            CourseOwnership.objects.get_or_create(
+            expires_at = None
+            if course.duration_days and course.duration_days > 0:
+                expires_at = timezone.now() + timezone.timedelta(days=course.duration_days)
+            ownership, created = CourseOwnership.objects.get_or_create(
                 user=request.user,
-                course=course
+                course=course,
+                defaults={'expires_at': expires_at}
             )
+            if not created:
+                ownership.expires_at = expires_at
+                ownership.purchased_at = timezone.now()
+                ownership.save()
             
         # Lưu vết giao dịch
         WalletTransaction.objects.create(
@@ -3572,6 +3758,474 @@ def buy_course_bundle(request, bundle_id):
         
     messages.success(request, f"Chúc mừng! Bạn đã mua thành công gói khóa học '{bundle.title}'.")
     return redirect('course_bundle_detail', bundle_id=bundle.id)
+
+
+@login_required
+def course_checkout(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    
+    # Kiểm tra xem học sinh đã sở hữu khóa học chưa
+    if CourseOwnership.has_active_ownership(request.user, course):
+        messages.info(request, "Bạn đã sở hữu khóa học này.")
+        return redirect('course_detail', course_id=course.id)
+        
+    # Kiểm tra xem có giao dịch đang chờ duyệt không
+    pending_tx = WalletTransaction.objects.filter(
+        user=request.user,
+        course=course,
+        status='PENDING'
+    ).first()
+    if pending_tx:
+        messages.warning(request, "Bạn đang có một yêu cầu thanh toán chuyển khoản chờ duyệt cho khóa học này.")
+        return redirect('course_detail', course_id=course.id)
+        
+    profile = request.user.profile
+    bank_accounts = BankAccount.objects.filter(is_active=True)
+    
+    if request.method == 'POST':
+        payment_method = request.POST.get('payment_method')
+        
+        if payment_method == 'offline':
+            proof_image = request.FILES.get('proof_image')
+            bank_account_id = request.POST.get('bank_account_id')
+            bank_account = None
+            if bank_account_id:
+                try:
+                    bank_account = BankAccount.objects.get(id=bank_account_id, is_active=True)
+                except BankAccount.DoesNotExist:
+                    pass
+            
+            if not proof_image:
+                messages.error(request, "Vui lòng tải lên ảnh chụp giao dịch / biên lai chuyển khoản.")
+                return render(request, 'lms/checkout.html', {
+                    'item': course,
+                    'item_type': 'course',
+                    'profile': profile,
+                    'price': course.price,
+                    'bank_accounts': bank_accounts,
+                })
+                
+            WalletTransaction.objects.create(
+                user=request.user,
+                amount=course.price,
+                transaction_type='PAYMENT',
+                status='PENDING',
+                proof_image=proof_image,
+                course=course,
+                bank_account=bank_account
+            )
+            messages.success(
+                request, 
+                "Gửi yêu cầu thanh toán thành công! Quyền sở hữu khóa học sẽ được mở sau khi Admin duyệt biên lai của bạn."
+            )
+            return redirect('course_detail', course_id=course.id)
+            
+    return render(request, 'lms/checkout.html', {
+        'item': course,
+        'item_type': 'course',
+        'profile': profile,
+        'price': course.price,
+        'bank_accounts': bank_accounts,
+    })
+
+
+@login_required
+def course_bundle_checkout(request, bundle_id):
+    bundle = get_object_or_404(CourseBundle, id=bundle_id)
+    courses = bundle.courses.all()
+    
+    # Kiểm tra xem đã sở hữu trọn combo chưa
+    owned_count = CourseOwnership.objects.filter(
+        user=request.user, 
+        course__in=courses
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+    ).count()
+    if courses.exists() and owned_count == courses.count():
+        messages.info(request, "Bạn đã sở hữu toàn bộ các khóa học trong gói combo này.")
+        return redirect('course_bundle_detail', bundle_id=bundle.id)
+        
+    pending_tx = WalletTransaction.objects.filter(
+        user=request.user,
+        course_bundle=bundle,
+        status='PENDING'
+    ).first()
+    if pending_tx:
+        messages.warning(request, "Bạn đang có một yêu cầu thanh toán chuyển khoản chờ duyệt cho gói combo này.")
+        return redirect('course_bundle_detail', bundle_id=bundle.id)
+        
+    profile = request.user.profile
+    bank_accounts = BankAccount.objects.filter(is_active=True)
+    
+    if request.method == 'POST':
+        payment_method = request.POST.get('payment_method')
+        
+        if payment_method == 'offline':
+            proof_image = request.FILES.get('proof_image')
+            bank_account_id = request.POST.get('bank_account_id')
+            bank_account = None
+            if bank_account_id:
+                try:
+                    bank_account = BankAccount.objects.get(id=bank_account_id, is_active=True)
+                except BankAccount.DoesNotExist:
+                    pass
+                
+            if not proof_image:
+                messages.error(request, "Vui lòng tải lên ảnh chụp giao dịch / biên lai chuyển khoản.")
+                return render(request, 'lms/checkout.html', {
+                    'item': bundle,
+                    'item_type': 'course_bundle',
+                    'profile': profile,
+                    'price': bundle.price,
+                    'bank_accounts': bank_accounts,
+                })
+                
+            WalletTransaction.objects.create(
+                user=request.user,
+                amount=bundle.price,
+                transaction_type='PAYMENT',
+                status='PENDING',
+                proof_image=proof_image,
+                course_bundle=bundle,
+                bank_account=bank_account
+            )
+            messages.success(
+                request, 
+                "Gửi yêu cầu thanh toán thành công! Quyền sở hữu gói combo sẽ được mở sau khi Admin duyệt biên lai của bạn."
+            )
+            return redirect('course_bundle_detail', bundle_id=bundle.id)
+            
+    return render(request, 'lms/checkout.html', {
+        'item': bundle,
+        'item_type': 'course_bundle',
+        'profile': profile,
+        'price': bundle.price,
+        'bank_accounts': bank_accounts,
+    })
+
+
+@login_required
+def test_checkout(request, test_id):
+    test = get_object_or_404(Test, id=test_id)
+    
+    # Kiểm tra xem học sinh đã có TestOwnership chưa
+    existing_reg = TestOwnership.objects.filter(user=request.user, test=test).first()
+    if existing_reg and existing_reg.agreed_rules:
+        messages.info(request, "Bạn đã đăng ký dự thi bài thi này thành công trước đó.")
+        return redirect('test_detail', test_id=test.id)
+        
+    pending_tx = WalletTransaction.objects.filter(
+        user=request.user,
+        test=test,
+        status='PENDING'
+    ).first()
+    if pending_tx:
+        messages.warning(request, "Bạn đang có một yêu cầu thanh toán chuyển khoản chờ duyệt cho đề thi này.")
+        return redirect('test_detail', test_id=test.id)
+        
+    profile = request.user.profile
+    bank_accounts = BankAccount.objects.filter(is_active=True)
+    
+    if request.method == 'POST':
+        payment_method = request.POST.get('payment_method')
+        agree = request.POST.get('agree_rules') == 'on'
+        
+        if not agree:
+            messages.error(request, "Bạn phải tích chọn đồng ý với Quy chế phòng thi trước khi thanh toán.")
+            return render(request, 'lms/checkout.html', {
+                'item': test,
+                'item_type': 'test',
+                'profile': profile,
+                'price': test.price,
+                'bank_accounts': bank_accounts,
+            })
+            
+        if payment_method == 'offline':
+            proof_image = request.FILES.get('proof_image')
+            bank_account_id = request.POST.get('bank_account_id')
+            bank_account = None
+            if bank_account_id:
+                try:
+                    bank_account = BankAccount.objects.get(id=bank_account_id, is_active=True)
+                except BankAccount.DoesNotExist:
+                    pass
+
+            if not proof_image:
+                messages.error(request, "Vui lòng tải lên ảnh chụp giao dịch / biên lai chuyển khoản.")
+                return render(request, 'lms/checkout.html', {
+                    'item': test,
+                    'item_type': 'test',
+                    'profile': profile,
+                    'price': test.price,
+                    'bank_accounts': bank_accounts,
+                })
+                
+            WalletTransaction.objects.create(
+                user=request.user,
+                amount=test.price,
+                transaction_type='PAYMENT',
+                status='PENDING',
+                proof_image=proof_image,
+                test=test,
+                bank_account=bank_account
+            )
+            messages.success(
+                request, 
+                "Gửi yêu cầu thanh toán thành công! Quyền dự thi sẽ được mở sau khi Admin duyệt biên lai của bạn."
+            )
+            return redirect('test_detail', test_id=test.id)
+            
+    return render(request, 'lms/checkout.html', {
+        'item': test,
+        'item_type': 'test',
+        'profile': profile,
+        'price': test.price,
+        'bank_accounts': bank_accounts,
+    })
+
+
+@login_required
+def test_bundle_checkout(request, bundle_id):
+    bundle = get_object_or_404(TestBundle, id=bundle_id)
+    tests = bundle.tests.all()
+    
+    # Kiểm tra xem đã sở hữu trọn combo đề thi chưa
+    owned_count = TestOwnership.objects.filter(user=request.user, test__in=tests).count()
+    if tests.exists() and owned_count == tests.count():
+        messages.info(request, "Bạn đã sở hữu toàn bộ đề thi trong gói này.")
+        return redirect('test_bundle_detail', bundle_id=bundle.id)
+        
+    pending_tx = WalletTransaction.objects.filter(
+        user=request.user,
+        test_bundle=bundle,
+        status='PENDING'
+    ).first()
+    if pending_tx:
+        messages.warning(request, "Bạn đang có một yêu cầu thanh toán chuyển khoản chờ duyệt cho combo đề thi này.")
+        return redirect('test_bundle_detail', bundle_id=bundle.id)
+        
+    profile = request.user.profile
+    bank_accounts = BankAccount.objects.filter(is_active=True)
+    
+    if request.method == 'POST':
+        payment_method = request.POST.get('payment_method')
+        
+        if payment_method == 'offline':
+            proof_image = request.FILES.get('proof_image')
+            bank_account_id = request.POST.get('bank_account_id')
+            bank_account = None
+            if bank_account_id:
+                try:
+                    bank_account = BankAccount.objects.get(id=bank_account_id, is_active=True)
+                except BankAccount.DoesNotExist:
+                    pass
+
+            if not proof_image:
+                messages.error(request, "Vui lòng tải lên ảnh chụp giao dịch / biên lai chuyển khoản.")
+                return render(request, 'lms/checkout.html', {
+                    'item': bundle,
+                    'item_type': 'test_bundle',
+                    'profile': profile,
+                    'price': bundle.price,
+                    'bank_accounts': bank_accounts,
+                })
+                
+            WalletTransaction.objects.create(
+                user=request.user,
+                amount=bundle.price,
+                transaction_type='PAYMENT',
+                status='PENDING',
+                proof_image=proof_image,
+                test_bundle=bundle,
+                bank_account=bank_account
+            )
+            messages.success(
+                request, 
+                "Gửi yêu cầu thanh toán thành công! Quyền làm bài sẽ được mở sau khi Admin duyệt biên lai của bạn."
+            )
+            return redirect('test_bundle_detail', bundle_id=bundle.id)
+            
+    return render(request, 'lms/checkout.html', {
+        'item': bundle,
+        'item_type': 'test_bundle',
+        'profile': profile,
+        'price': bundle.price,
+        'bank_accounts': bank_accounts,
+    })
+
+
+@teacher_required
+def teacher_courses_progress(request):
+    """
+    Dashboard liệt kê danh sách khóa học của giáo viên
+    """
+    if request.user.is_superuser:
+        courses = Course.objects.all().order_by('-created_at')
+    else:
+        courses = Course.objects.filter(creator=request.user).order_by('-created_at')
+        
+    course_data = []
+    for course in courses:
+        student_count = CourseOwnership.objects.filter(course=course).count()
+        lesson_count = course.lessons.count()
+        course_data.append({
+            'course': course,
+            'student_count': student_count,
+            'lesson_count': lesson_count,
+        })
+        
+    return render(request, 'lms/teacher_courses_progress.html', {
+        'course_data': course_data,
+    })
+
+
+@teacher_required
+def teacher_course_detail_progress(request, course_id):
+    """
+    Chi tiết tiến độ học tập của từng học viên trong một khóa học cụ thể
+    """
+    course = get_object_or_404(Course, id=course_id)
+    if not request.user.is_superuser and course.creator != request.user:
+        messages.error(request, "Bạn không có quyền quản lý khóa học này.")
+        return redirect('course_list')
+        
+    lessons = course.lessons.all().order_by('order_index')
+    total_lessons = lessons.count()
+    
+    ownerships = CourseOwnership.objects.filter(course=course).select_related('user').order_by('-purchased_at')
+    
+    # 1. Áp dụng bộ lọc tìm kiếm theo tên/username học sinh
+    student_query = request.GET.get('student', '').strip()
+    if student_query:
+        ownerships = ownerships.filter(
+            Q(user__username__icontains=student_query) |
+            Q(user__first_name__icontains=student_query) |
+            Q(user__last_name__icontains=student_query)
+        )
+        
+    # 2. Bulk query LessonProgress của tất cả học sinh này đối với các bài học này
+    user_ids = [o.user_id for o in ownerships]
+    lesson_ids = [l.id for l in lessons]
+    
+    progress_qs = LessonProgress.objects.filter(
+        user_id__in=user_ids,
+        lesson_id__in=lesson_ids,
+        is_completed=True
+    )
+    
+    # Tổ chức dữ liệu progress thành dictionary
+    user_progress_dict = {}
+    for p in progress_qs:
+        if p.user_id not in user_progress_dict:
+            user_progress_dict[p.user_id] = set()
+        user_progress_dict[p.user_id].add(p.lesson_id)
+        
+    # 3. Tạo danh sách học sinh và áp dụng các bộ lọc tiến độ và thời hạn học
+    student_data = []
+    selected_progress = request.GET.get('progress', 'all')
+    selected_status = request.GET.get('status', 'all')
+    
+    for ownership in ownerships:
+        u = ownership.user
+        completed_lessons = user_progress_dict.get(u.id, set())
+        completed_count = len(completed_lessons)
+        
+        progress_percentage = 0
+        if total_lessons > 0:
+            progress_percentage = int((completed_count / total_lessons) * 100)
+            
+        # Lọc theo tiến độ
+        if selected_progress == 'completed' and progress_percentage < 100:
+            continue
+        elif selected_progress == 'in_progress' and (progress_percentage == 0 or progress_percentage == 100):
+            continue
+        elif selected_progress == 'not_started' and progress_percentage > 0:
+            continue
+            
+        # Lọc theo thời hạn
+        is_expired = ownership.is_expired
+        if selected_status == 'active' and is_expired:
+            continue
+        elif selected_status == 'expired' and not is_expired:
+            continue
+            
+        # Chi tiết từng bài học của học viên này
+        lesson_details = []
+        for l in lessons:
+            lesson_details.append({
+                'id': l.id,
+                'title': l.title,
+                'lesson_type': l.get_lesson_type_display(),
+                'is_completed': l.id in completed_lessons
+            })
+            
+        student_data.append({
+            'user': u,
+            'ownership': ownership,
+            'completed_count': completed_count,
+            'progress_percentage': progress_percentage,
+            'lesson_details': lesson_details,
+            'is_expired': is_expired
+        })
+        
+    return render(request, 'lms/teacher_course_detail_progress.html', {
+        'course': course,
+        'lessons': lessons,
+        'total_lessons': total_lessons,
+        'student_data': student_data,
+        'student_query': student_query,
+        'selected_progress': selected_progress,
+        'selected_status': selected_status,
+        'total_students_count': ownerships.count(),
+    })
+
+
+@login_required
+def my_courses(request):
+    from lms.models import CourseOwnership, LessonProgress
+    ownerships = CourseOwnership.objects.filter(user=request.user).select_related('course').order_by('-purchased_at')
+    
+    course_data = []
+    for o in ownerships:
+        course = o.course
+        total_lessons = course.lessons.count()
+        completed_lessons = LessonProgress.objects.filter(user=request.user, lesson__course=course, is_completed=True).count()
+        progress_percent = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
+        
+        course_data.append({
+            'ownership': o,
+            'course': course,
+            'total_lessons': total_lessons,
+            'completed_lessons': completed_lessons,
+            'progress_percent': progress_percent,
+            'is_expired': o.is_expired,
+        })
+        
+    return render(request, 'lms/my_courses.html', {'courses': course_data})
+
+
+@login_required
+def my_tests(request):
+    from lms.models import TestOwnership, Attempt
+    ownerships = TestOwnership.objects.filter(user=request.user).select_related('test').order_by('-purchased_at')
+    
+    test_data = []
+    for o in ownerships:
+        test = o.test
+        best_attempt = Attempt.objects.filter(user=request.user, test=test, end_time__isnull=False).order_by('-total_score').first()
+        attempts_count = Attempt.objects.filter(user=request.user, test=test).count()
+        
+        test_data.append({
+            'ownership': o,
+            'test': test,
+            'best_attempt': best_attempt,
+            'attempts_count': attempts_count,
+        })
+        
+    return render(request, 'lms/my_tests.html', {'tests': test_data})
+
+
+
 
 
 

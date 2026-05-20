@@ -2,7 +2,8 @@ from django.contrib import admin
 from .models import (
     Profile, WalletTransaction, Course, CourseBundle, Lesson,
     QuestionGroup, EquivalentQuestionGroup, Question, Choice, Test, DynamicTest, TestBundle, SharedInstruction,
-    TestPartInstruction, TestQuestion, Attempt, AttemptAnswer, TestRegulation, TestOwnership
+    TestPartInstruction, TestQuestion, Attempt, AttemptAnswer, TestRegulation, TestOwnership,
+    BankAccount, CourseOwnership
 )
 
 @admin.register(Profile)
@@ -10,21 +11,33 @@ class ProfileAdmin(admin.ModelAdmin):
     list_display = ['user', 'wallet_balance', 'vnoj_username', 'codeforces_username']
     search_fields = ['user__username', 'vnoj_username']
 
+@admin.register(BankAccount)
+class BankAccountAdmin(admin.ModelAdmin):
+    list_display = ['bank_name', 'bank_code', 'account_number', 'account_holder', 'is_active', 'created_at']
+    list_filter = ['is_active', 'bank_name']
+    search_fields = ['bank_name', 'account_number', 'account_holder']
+
 @admin.register(WalletTransaction)
 class WalletTransactionAdmin(admin.ModelAdmin):
-    list_display = ['user', 'amount', 'transaction_type', 'status', 'created_at']
-    list_filter = ['status', 'transaction_type']
+    list_display = ['user', 'amount', 'transaction_type', 'status', 'bank_account', 'created_at']
+    list_filter = ['status', 'transaction_type', 'bank_account']
     actions = ['approve_transaction']
 
     def approve_transaction(self, request, queryset):
         for tx in queryset.filter(status='PENDING'):
-            if tx.transaction_type == 'DEPOSIT':
-                profile = tx.user.profile
-                profile.wallet_balance += tx.amount
-                profile.save()
-            tx.status = 'APPROVED'
-            tx.save()
+            tx.approve()
     approve_transaction.short_description = "Phê duyệt các giao dịch đang chờ"
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            # Check if status has transitioned from PENDING to APPROVED
+            old_obj = WalletTransaction.objects.get(pk=obj.pk)
+            if old_obj.status == 'PENDING' and obj.status == 'APPROVED':
+                # Revert to PENDING to let approve() execute full logic and save
+                obj.status = 'PENDING'
+                obj.approve()
+                return
+        super().save_model(request, obj, form, change)
 
 class LessonInline(admin.TabularInline):
     model = Lesson
@@ -38,7 +51,7 @@ class LessonAdmin(admin.ModelAdmin):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ['title', 'price', 'learning_mode', 'creator']
+    list_display = ['title', 'price', 'duration_days', 'learning_mode', 'creator']
     list_filter = ['learning_mode']
     inlines = [LessonInline]
     exclude = ['creator']
@@ -53,6 +66,17 @@ class CourseAdmin(admin.ModelAdmin):
         if not change or not obj.creator:
             obj.creator = request.user
         super().save_model(request, obj, form, change)
+
+@admin.register(CourseOwnership)
+class CourseOwnershipAdmin(admin.ModelAdmin):
+    list_display = ['user', 'course', 'purchased_at', 'expires_at', 'is_expired_display']
+    list_filter = ['course']
+    search_fields = ['user__username', 'course__title']
+
+    def is_expired_display(self, obj):
+        return obj.is_expired
+    is_expired_display.boolean = True
+    is_expired_display.short_description = "Đã hết hạn?"
 
 @admin.register(CourseBundle)
 class CourseBundleAdmin(admin.ModelAdmin):

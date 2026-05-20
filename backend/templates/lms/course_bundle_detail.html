@@ -72,15 +72,28 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             <span class="font-bold text-sm">Bạn đã sở hữu combo này</span>
                         </div>
+                    {% elif has_pending_transaction %}
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
+                                <div class="flex gap-2">
+                                    <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-amber-800">Đơn hàng đang chờ duyệt</h4>
+                                        <p class="text-[11px] text-amber-700 mt-1 leading-relaxed">Giao dịch thanh toán chuyển khoản đang chờ duyệt.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button disabled class="w-full sm:w-auto inline-flex justify-center items-center px-6 py-3.5 bg-amber-100 text-amber-600 rounded-xl font-bold cursor-not-allowed gap-2">
+                                <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"/></svg>
+                                Chờ phê duyệt...
+                            </button>
+                        </div>
                     {% else %}
                         {% if user.is_authenticated %}
-                            <form action="{% url 'buy_course_bundle' bundle.id %}" method="post">
-                                {% csrf_token %}
-                                <button type="submit" class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl font-bold hover:from-emerald-700 hover:to-teal-800 transition-all duration-200 shadow-md hover:shadow-lg">
-                                    Thanh toán & Mua ngay
-                                    <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
-                                </button>
-                            </form>
+                            <a href="{% url 'course_bundle_checkout' bundle.id %}" class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl font-bold hover:from-emerald-700 hover:to-teal-800 transition-all duration-200 shadow-md hover:shadow-lg">
+                                Mua combo ngay
+                                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                            </a>
                         {% else %}
                             <a href="{% url 'login' %}?next={{ request.path }}" class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-md">
                                 Đăng nhập để mua combo khóa học

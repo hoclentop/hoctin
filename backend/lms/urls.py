@@ -9,6 +9,7 @@ urlpatterns = [
     path('tests/', views.test_list, name='test_list'),
     path('test/<int:test_id>/', views.test_detail, name='test_detail'),
     path('test/<int:test_id>/register/', views.register_test, name='register_test'),
+    path('test/<int:test_id>/checkout/', views.test_checkout, name='test_checkout'),
     path('test/<int:test_id>/take/', views.take_test, name='take_test'),
     path('attempt/<int:attempt_id>/submit/', views.submit_test, name='submit_test'),
     path('result/<int:attempt_id>/', views.test_result, name='test_result'),
@@ -69,16 +70,22 @@ urlpatterns = [
     path('bundles/', views.test_bundle_list, name='test_bundle_list'),
     path('bundle/<int:bundle_id>/', views.test_bundle_detail, name='test_bundle_detail'),
     path('bundle/<int:bundle_id>/buy/', views.buy_test_bundle, name='buy_test_bundle'),
+    path('bundle/<int:bundle_id>/checkout/', views.test_bundle_checkout, name='test_bundle_checkout'),
     
     # URL Gói khóa học
     path('course-bundles/', views.course_bundle_list, name='course_bundle_list'),
     path('course-bundle/<int:bundle_id>/', views.course_bundle_detail, name='course_bundle_detail'),
     path('course-bundle/<int:bundle_id>/buy/', views.buy_course_bundle, name='buy_course_bundle'),
+    path('course-bundle/<int:bundle_id>/checkout/', views.course_bundle_checkout, name='course_bundle_checkout'),
+    path('courses/<int:course_id>/checkout/', views.course_checkout, name='course_checkout'),
     
     # URL quản lý khóa học (Giáo viên)
+    path('courses/', views.all_courses, name='all_courses'),
     path('courses/create/', views.create_course, name='create_course'),
     path('courses/<int:course_id>/edit/', views.edit_course, name='edit_course'),
     path('courses/<int:course_id>/delete/', views.delete_course, name='delete_course'),
+    path('teacher/courses/progress/', views.teacher_courses_progress, name='teacher_courses_progress'),
+    path('teacher/courses/<int:course_id>/progress/', views.teacher_course_detail_progress, name='teacher_course_detail_progress'),
 
     # URL quản lý bài học (Giáo viên)
     path('courses/<int:course_id>/structure/', views.manage_course_structure, name='manage_course_structure'),
@@ -91,4 +98,8 @@ urlpatterns = [
     path('courses/<int:course_id>/lessons/<int:lesson_id>/', views.lesson_detail, name='lesson_detail'),
     path('lessons/<int:lesson_id>/sync-progress-ajax/', views.sync_lesson_progress_ajax, name='sync_lesson_progress_ajax'),
     path('lessons/<int:lesson_id>/complete-ajax/', views.complete_lesson_ajax, name='complete_lesson_ajax'),
+    
+    # URL cho học sinh theo dõi khóa học & đề thi của mình
+    path('my-courses/', views.my_courses, name='my_courses'),
+    path('my-tests/', views.my_tests, name='my_tests'),
 ]

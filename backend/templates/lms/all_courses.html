@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}Tất cả khóa học - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="space-y-10">
+    <!-- Header Banner -->
+    <div class="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 rounded-3xl overflow-hidden py-12 px-6 sm:px-12 text-center shadow-xl">
+        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]"></div>
+        <div class="absolute -top-24 -left-24 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-24 -right-24 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
+
+        <div class="relative max-w-2xl mx-auto">
+            <span class="px-3 py-1 bg-indigo-500/20 text-indigo-300 text-xs font-bold tracking-widest uppercase rounded-full border border-indigo-500/30">
+                Chương trình đào tạo
+            </span>
+            <h1 class="text-3xl sm:text-4xl font-black text-white font-outfit tracking-tight mt-4 mb-3">
+                Danh Sách Khóa Học
+            </h1>
+            <p class="text-sm sm:text-base text-slate-300 font-light max-w-md mx-auto leading-relaxed">
+                Học lập trình bài bản, rèn luyện tư duy thuật toán và thực hành ngay với trình chấm code tự động chất lượng cao.
+            </p>
+        </div>
+    </div>
+
+    <!-- Courses Grid -->
+    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8">
+        <div class="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+            <div>
+                <h2 class="text-xl font-extrabold text-slate-900 font-outfit flex items-center gap-2">
+                    <svg class="w-5.5 h-5.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                    </svg>
+                    Tất cả khóa học hiện có
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">Tìm kiếm và bắt đầu lộ trình chinh phục tri thức của bạn.</p>
+            </div>
+            <span class="bg-indigo-50 text-indigo-700 text-xs font-bold font-outfit px-3 py-1 rounded-full border border-indigo-100">
+                {{ courses.count }} khóa học
+            </span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {% for course in courses %}
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden group">
+                    <!-- Course Thumbnail/Banner Graphic -->
+                    <div class="relative h-36 w-full bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-700 flex items-center justify-center overflow-hidden">
+                        {% if course.thumbnail %}
+                            <img src="{{ course.thumbnail.url }}" alt="{{ course.title }}" class="w-full h-full object-cover opacity-95 group-hover:scale-105 transition-transform duration-500">
+                        {% else %}
+                            <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:12px_12px]"></div>
+                            <svg class="w-12 h-12 text-white/25" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                            </svg>
+                        {% endif %}
+                        <div class="absolute top-3 left-3 z-10">
+                            <span class="px-2 py-0.5 bg-white/95 text-[9px] font-black uppercase text-indigo-700 rounded-full shadow-sm">
+                                {% if course.learning_mode == 'SEQUENTIAL' %}Tuần tự{% else %}Tự do{% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Card Content -->
+                    <div class="p-4 flex-grow flex flex-col justify-between">
+                        <div class="space-y-2">
+                            <h3 class="text-sm font-bold text-slate-800 hover:text-indigo-600 transition-colors line-clamp-2 leading-snug font-outfit" title="{{ course.title }}">
+                                <a href="{% url 'course_detail' course.id %}">{{ course.title }}</a>
+                            </h3>
+                            <p class="text-xs text-slate-400 line-clamp-2 font-light leading-relaxed">
+                                {{ course.description|striptags }}
+                            </p>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="border-t border-slate-100 my-3"></div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-black {% if course.price == 0 %}text-emerald-600{% else %}text-indigo-600{% endif %}">
+                                    {% if course.price == 0 %}Miễn phí{% else %}{{ course.price|floatformat:0 }}đ{% endif %}
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                                    </svg>
+                                    {{ course.lessons.count }} bài học
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-span-full py-12 text-center">
+                    <svg class="w-16 h-16 text-slate-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                    </svg>
+                    <p class="text-slate-400 text-sm italic font-light">Hiện tại chưa có khóa học nào được đăng ký trên hệ thống.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

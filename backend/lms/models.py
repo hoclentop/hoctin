@@ -19,6 +19,22 @@ class Profile(models.Model):
     def __str__(self):
         return self.user.username
 
+class BankAccount(models.Model):
+    bank_name = models.CharField(max_length=100, verbose_name="Tên ngân hàng")
+    bank_code = models.CharField(max_length=20, verbose_name="Mã ngân hàng (ví dụ: VCB, MB, TCB)")
+    account_number = models.CharField(max_length=50, verbose_name="Số tài khoản")
+    account_holder = models.CharField(max_length=100, verbose_name="Chủ tài khoản")
+    is_active = models.BooleanField(default=True, verbose_name="Đang hoạt động")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Tài khoản ngân hàng"
+        verbose_name_plural = "Các tài khoản ngân hàng"
+
+    def __str__(self):
+        return f"{self.bank_name} - {self.account_number} ({self.account_holder})"
+
+
 class WalletTransaction(models.Model):
     TRANSACTION_TYPES = (
         ('DEPOSIT', 'Nạp tiền'),
@@ -34,8 +50,79 @@ class WalletTransaction(models.Model):
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     proof_image = models.FileField(upload_to='transactions/', blank=True, null=True)
+    
+    # Liên kết trực tiếp sản phẩm thanh toán offline
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, blank=True, null=True, related_name='transactions')
+    course_bundle = models.ForeignKey('CourseBundle', on_delete=models.SET_NULL, blank=True, null=True, related_name='transactions')
+    test = models.ForeignKey('Test', on_delete=models.SET_NULL, blank=True, null=True, related_name='transactions')
+    test_bundle = models.ForeignKey('TestBundle', on_delete=models.SET_NULL, blank=True, null=True, related_name='transactions')
+    bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, blank=True, null=True, related_name='transactions', verbose_name="Ngân hàng thụ hưởng")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def approve(self):
+        """
+        Centrally approves a transaction.
+        If it's a DEPOSIT, increases the user's profile wallet balance.
+        If it's a PAYMENT, grants CourseOwnership or TestOwnership access.
+        """
+        from django.db import transaction
+        from django.utils import timezone
+        
+        if self.status != 'PENDING':
+            return False
+            
+        with transaction.atomic():
+            if self.transaction_type == 'DEPOSIT':
+                profile = self.user.profile
+                profile.wallet_balance += self.amount
+                profile.save()
+            else:
+                # Direct product payment approvals - Grant access atomically
+                if self.course:
+                    expires_at = None
+                    if self.course.duration_days and self.course.duration_days > 0:
+                        expires_at = timezone.now() + timezone.timedelta(days=self.course.duration_days)
+                    ownership, created = CourseOwnership.objects.get_or_create(
+                        user=self.user, 
+                        course=self.course,
+                        defaults={'expires_at': expires_at}
+                    )
+                    if not created:
+                        ownership.expires_at = expires_at
+                        ownership.purchased_at = timezone.now()
+                        ownership.save()
+                elif self.course_bundle:
+                    for course in self.course_bundle.courses.all():
+                        expires_at = None
+                        if course.duration_days and course.duration_days > 0:
+                            expires_at = timezone.now() + timezone.timedelta(days=course.duration_days)
+                        ownership, created = CourseOwnership.objects.get_or_create(
+                            user=self.user, 
+                            course=course,
+                            defaults={'expires_at': expires_at}
+                        )
+                        if not created:
+                            ownership.expires_at = expires_at
+                            ownership.purchased_at = timezone.now()
+                            ownership.save()
+                elif self.test:
+                    TestOwnership.objects.update_or_create(
+                        user=self.user, 
+                        test=self.test, 
+                        defaults={'registered_at': timezone.now(), 'agreed_rules': True}
+                    )
+                elif self.test_bundle:
+                    for test in self.test_bundle.tests.all():
+                        TestOwnership.objects.update_or_create(
+                            user=self.user, 
+                            test=test, 
+                            defaults={'registered_at': timezone.now(), 'agreed_rules': True}
+                        )
+            self.status = 'APPROVED'
+            self.save()
+        return True
 
 # 2. Quản lý Khóa học
 class Course(models.Model):
@@ -48,6 +135,7 @@ class Course(models.Model):
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     learning_mode = models.CharField(max_length=15, choices=LEARNING_MODE, default='SEQUENTIAL')
     thumbnail = models.FileField(upload_to='courses/', blank=True, null=True)
+    duration_days = models.PositiveIntegerField(default=30, null=True, blank=True, verbose_name="Thời hạn học (ngày)", help_text="Số ngày được học kể từ lúc mua/duyệt. Nhập 0 hoặc để trống nếu muốn học trọn đời.")
     created_at = models.DateTimeField(auto_now_add=True)
     creator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_courses', verbose_name="Người tạo")
 
@@ -226,6 +314,11 @@ class Test(models.Model):
 
     @property
     def total_possible_points(self):
+        try:
+            if hasattr(self, 'dynamictest') and self.dynamictest:
+                return self.dynamictest.total_points
+        except Exception:
+            pass
         total = 0
         for tq in self.questions.all():
             total += tq.points
@@ -310,9 +403,29 @@ class CourseOwnership(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     purchased_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name="Ngày hết hạn", help_text="Thời điểm hết hạn học khóa học này. Để trống nghĩa là học trọn đời.")
 
     class Meta:
         unique_together = ('user', 'course')
+
+    @property
+    def is_expired(self):
+        if self.expires_at is None:
+            return False
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+
+    @classmethod
+    def has_active_ownership(cls, user, course):
+        if not user.is_authenticated:
+            return False
+        from django.utils import timezone
+        return cls.objects.filter(
+            user=user,
+            course=course
+        ).filter(
+            models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())
+        ).exists()
 
 class TestOwnership(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

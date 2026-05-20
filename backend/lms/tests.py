@@ -334,6 +334,77 @@ class CourseAndLessonTestCase(TestCase):
         is_completed = LessonProgress.objects.filter(user=self.student, lesson=test_lesson, is_completed=True).exists()
         self.assertTrue(is_completed)
 
+    def test_sequential_test_requires_100_percent(self):
+        from django.urls import reverse
+        from lms.models import Test, LessonProgress, TestQuestion, Question, Choice
+        
+        # Create a test with a question worth 10 points
+        test_obj = Test.objects.create(
+            title='Sequential Hard Test',
+            price=0.0,
+            duration=30,
+            creator=self.admin
+        )
+        
+        q = Question.objects.create(
+            content='Hard Question',
+            question_type=1, # Single Choice
+        )
+        c_correct = Choice.objects.create(question=q, content='Correct', is_correct=True)
+        c_incorrect = Choice.objects.create(question=q, content='Incorrect', is_correct=False)
+        
+        tq = TestQuestion.objects.create(
+            test=test_obj,
+            question=q,
+            points=10.0
+        )
+        
+        # Create a lesson linked to this test inside the sequential course
+        test_lesson = Lesson.objects.create(
+            title='Sequential Test Lesson',
+            course=self.free_course,
+            lesson_type='TEST',
+            test=test_obj,
+            order_index=4
+        )
+        
+        CourseOwnership.objects.get_or_create(user=self.student, course=self.free_course)
+        
+        # Scenario A: Student attempts but gets 0/10 points (incorrect choice)
+        attempt1 = Attempt.objects.create(
+            user=self.student,
+            test=test_obj,
+            start_time=timezone.now()
+        )
+        
+        self.client.login(username='student1', password='password123')
+        # Submit incorrect choice
+        response = self.client.post(reverse('submit_test', args=[attempt1.id]), {
+            f'q_{tq.id}': [c_incorrect.id]
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # Verify the lesson progress is NOT completed (since it's sequential and score is 0/10)
+        is_completed = LessonProgress.objects.filter(user=self.student, lesson=test_lesson, is_completed=True).exists()
+        self.assertFalse(is_completed)
+        
+        # Scenario B: Student re-attempts and gets 10/10 points (correct choice)
+        attempt2 = Attempt.objects.create(
+            user=self.student,
+            test=test_obj,
+            start_time=timezone.now()
+        )
+        
+        # Submit correct choice
+        response = self.client.post(reverse('submit_test', args=[attempt2.id]), {
+            f'q_{tq.id}': [c_correct.id]
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # Verify the lesson progress IS completed now
+        is_completed = LessonProgress.objects.filter(user=self.student, lesson=test_lesson, is_completed=True).exists()
+        self.assertTrue(is_completed)
+
 class ProfileTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='tester', password='password123')
@@ -711,4 +782,945 @@ class AdminWalletTransactionTestCase(TestCase):
         self.assertEqual(self.tx.status, 'PENDING')
         self.student_profile.refresh_from_db()
         self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+
+
+class OfflinePaymentTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from lms.models import Course, CourseBundle, Test, TestBundle, BankAccount
+        
+        # Create users
+        self.student = User.objects.create_user(username='student_offline', password='password123')
+        self.student_profile = self.student.profile
+        self.student_profile.wallet_balance = 0.00
+        self.student_profile.save()
+        
+        self.admin = User.objects.create_superuser(username='admin_offline', password='adminpassword')
+        
+        # Create bank accounts
+        self.bank_active_mb = BankAccount.objects.create(
+            bank_name='MB Bank',
+            bank_code='MB',
+            account_number='0987654321',
+            account_holder='HOCTIN LMS',
+            is_active=True
+        )
+        self.bank_active_vcb = BankAccount.objects.create(
+            bank_name='Vietcombank',
+            bank_code='VCB',
+            account_number='1234567890',
+            account_holder='HOCTIN LMS',
+            is_active=True
+        )
+        self.bank_inactive = BankAccount.objects.create(
+            bank_name='DongA Bank',
+            bank_code='DAB',
+            account_number='9999999999',
+            account_holder='HOCTIN LMS',
+            is_active=False
+        )
+
+        # Create a course
+        self.course = Course.objects.create(
+            title='Offline Python Course',
+            description='Learn Python Offline',
+            price=150000.00
+        )
+        
+        # Create a CourseBundle
+        self.course_in_bundle1 = Course.objects.create(title='Combo Course 1', price=50000.00)
+        self.course_in_bundle2 = Course.objects.create(title='Combo Course 2', price=50000.00)
+        self.course_bundle = CourseBundle.objects.create(
+            title='Offline Combo Course',
+            description='Learn Combo Offline',
+            price=80000.00
+        )
+        self.course_bundle.courses.add(self.course_in_bundle1, self.course_in_bundle2)
+        
+        # Create a Test
+        self.test = Test.objects.create(
+            title='Offline Practice Exam',
+            price=20000.00,
+            duration=45
+        )
+        
+        # Create a TestBundle
+        self.test_in_bundle1 = Test.objects.create(title='Combo Test 1', price=10000.00)
+        self.test_in_bundle2 = Test.objects.create(title='Combo Test 2', price=10000.00)
+        self.test_bundle = TestBundle.objects.create(
+            title='Offline Combo Test',
+            description='Learn Test Combo Offline',
+            price=15000.00
+        )
+        self.test_bundle.tests.add(self.test_in_bundle1, self.test_in_bundle2)
+        
+        # Mock file
+        self.mock_image = SimpleUploadedFile("proof.png", b"file_content", content_type="image/png")
+
+    def test_course_offline_checkout_and_approval(self):
+        from django.urls import reverse
+        from lms.models import WalletTransaction, CourseOwnership
+        
+        self.client.login(username='student_offline', password='password123')
+        
+        # 1. POST to course_checkout with offline payment
+        response = self.client.post(reverse('course_checkout', args=[self.course.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # 2. Verify transaction created with status PENDING and correct details
+        tx = WalletTransaction.objects.filter(user=self.student, course=self.course).first()
+        self.assertIsNotNone(tx)
+        self.assertEqual(tx.status, 'PENDING')
+        self.assertEqual(tx.transaction_type, 'PAYMENT')
+        self.assertEqual(float(tx.amount), 150000.00)
+        
+        # 3. Verify has_pending_transaction is True in detail view
+        response = self.client.get(reverse('course_detail', args=[self.course.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['has_pending_transaction'])
+        
+        # 4. Admin approves
+        self.client.login(username='admin_offline', password='adminpassword')
+        response = self.client.post(reverse('approve_transaction_admin', args=[tx.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        # 5. Verify status is APPROVED and ownership is granted
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'APPROVED')
+        self.assertTrue(CourseOwnership.objects.filter(user=self.student, course=self.course).exists())
+        
+        # 6. Verify wallet balance remains unchanged
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+
+    def test_course_bundle_offline_checkout_and_rejection(self):
+        from django.urls import reverse
+        from lms.models import WalletTransaction, CourseOwnership
+        
+        self.client.login(username='student_offline', password='password123')
+        
+        # 1. POST to course_bundle_checkout with offline payment
+        response = self.client.post(reverse('course_bundle_checkout', args=[self.course_bundle.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # 2. Verify transaction created with status PENDING
+        tx = WalletTransaction.objects.filter(user=self.student, course_bundle=self.course_bundle).first()
+        self.assertIsNotNone(tx)
+        self.assertEqual(tx.status, 'PENDING')
+        
+        # 3. Verify has_pending_transaction is True in bundle detail view
+        response = self.client.get(reverse('course_bundle_detail', args=[self.course_bundle.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['has_pending_transaction'])
+        
+        # 4. Admin rejects
+        self.client.login(username='admin_offline', password='adminpassword')
+        response = self.client.post(reverse('reject_transaction_admin', args=[tx.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        # 5. Verify status is REJECTED and no ownership is granted
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'REJECTED')
+        self.assertFalse(CourseOwnership.objects.filter(user=self.student, course=self.course_in_bundle1).exists())
+        self.assertFalse(CourseOwnership.objects.filter(user=self.student, course=self.course_in_bundle2).exists())
+        
+        # 6. Verify wallet balance remains unchanged
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+
+    def test_test_offline_checkout_rules_agreement(self):
+        from django.urls import reverse
+        from lms.models import WalletTransaction, TestOwnership
+        
+        self.client.login(username='student_offline', password='password123')
+        
+        # 1. POST to test_checkout with offline payment but without rules agreement
+        response = self.client.post(reverse('test_checkout', args=[self.test.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image
+        })
+        self.assertEqual(response.status_code, 200) # Re-renders checkout due to error
+        self.assertFalse(WalletTransaction.objects.filter(user=self.student, test=self.test).exists())
+        
+        # 2. POST to test_checkout with offline payment AND rules agreement
+        response = self.client.post(reverse('test_checkout', args=[self.test.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image,
+            'agree_rules': 'on'
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # 3. Verify transaction created with status PENDING
+        tx = WalletTransaction.objects.filter(user=self.student, test=self.test).first()
+        self.assertIsNotNone(tx)
+        self.assertEqual(tx.status, 'PENDING')
+        
+        # 4. Verify has_pending_transaction in test detail view
+        response = self.client.get(reverse('test_detail', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['has_pending_transaction'])
+        
+        # 5. Admin approves
+        self.client.login(username='admin_offline', password='adminpassword')
+        response = self.client.post(reverse('approve_transaction_admin', args=[tx.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        # 6. Verify status is APPROVED and TestOwnership is granted with agreement
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'APPROVED')
+        
+        ownership = TestOwnership.objects.filter(user=self.student, test=self.test).first()
+        self.assertIsNotNone(ownership)
+        self.assertTrue(ownership.agreed_rules)
+        self.assertIsNotNone(ownership.registered_at)
+
+    def test_test_bundle_offline_checkout_and_approval(self):
+        from django.urls import reverse
+        from lms.models import WalletTransaction, TestOwnership
+        
+        self.client.login(username='student_offline', password='password123')
+        
+        # 1. POST to test_bundle_checkout with offline payment
+        response = self.client.post(reverse('test_bundle_checkout', args=[self.test_bundle.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        # 2. Verify transaction created with status PENDING
+        tx = WalletTransaction.objects.filter(user=self.student, test_bundle=self.test_bundle).first()
+        self.assertIsNotNone(tx)
+        self.assertEqual(tx.status, 'PENDING')
+        
+        # 3. Verify has_pending_transaction in test bundle detail view
+        response = self.client.get(reverse('test_bundle_detail', args=[self.test_bundle.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['has_pending_transaction'])
+        
+        # 4. Admin approves
+        self.client.login(username='admin_offline', password='adminpassword')
+        response = self.client.post(reverse('approve_transaction_admin', args=[tx.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        # 5. Verify status is APPROVED and TestOwnership for all tests in the bundle is granted with agreement
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'APPROVED')
+        
+        ownership1 = TestOwnership.objects.filter(user=self.student, test=self.test_in_bundle1).first()
+        self.assertIsNotNone(ownership1)
+        self.assertTrue(ownership1.agreed_rules)
+        self.assertIsNotNone(ownership1.registered_at)
+        
+        ownership2 = TestOwnership.objects.filter(user=self.student, test=self.test_in_bundle2).first()
+        self.assertIsNotNone(ownership2)
+        self.assertTrue(ownership2.agreed_rules)
+        self.assertIsNotNone(ownership2.registered_at)
+
+    def test_multi_bank_account_checkout(self):
+        from django.urls import reverse
+        from lms.models import WalletTransaction, BankAccount
+        
+        self.client.login(username='student_offline', password='password123')
+        
+        # 1. GET to checkout and verify active bank accounts are present in context, and inactive is NOT.
+        response = self.client.get(reverse('course_checkout', args=[self.course.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        bank_accounts = list(response.context['bank_accounts'])
+        self.assertIn(self.bank_active_mb, bank_accounts)
+        self.assertIn(self.bank_active_vcb, bank_accounts)
+        self.assertNotIn(self.bank_inactive, bank_accounts)
+        
+        # 2. POST offline checkout with valid active bank account ID (MB Bank)
+        response = self.client.post(reverse('course_checkout', args=[self.course.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image,
+            'bank_account_id': self.bank_active_mb.id
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        tx_mb = WalletTransaction.objects.filter(user=self.student, course=self.course, status='PENDING').first()
+        self.assertIsNotNone(tx_mb)
+        self.assertEqual(tx_mb.bank_account, self.bank_active_mb)
+        
+        # Clean up the transaction so we can checkout again
+        tx_mb.delete()
+        
+        # 3. POST offline checkout with valid active bank account ID (Vietcombank)
+        response = self.client.post(reverse('course_checkout', args=[self.course.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image,
+            'bank_account_id': self.bank_active_vcb.id
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        tx_vcb = WalletTransaction.objects.filter(user=self.student, course=self.course, status='PENDING').first()
+        self.assertIsNotNone(tx_vcb)
+        self.assertEqual(tx_vcb.bank_account, self.bank_active_vcb)
+        
+        # Clean up
+        tx_vcb.delete()
+        
+        # 4. POST offline checkout with inactive bank account ID
+        response = self.client.post(reverse('course_checkout', args=[self.course.id]), {
+            'payment_method': 'offline',
+            'proof_image': self.mock_image,
+            'bank_account_id': self.bank_inactive.id
+        })
+        self.assertEqual(response.status_code, 302)
+        
+        tx_inactive = WalletTransaction.objects.filter(user=self.student, course=self.course, status='PENDING').first()
+        self.assertIsNotNone(tx_inactive)
+        self.assertIsNone(tx_inactive.bank_account)
+
+
+class WalletTransactionAdminApprovalTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.admin.sites import AdminSite
+        from lms.admin import WalletTransactionAdmin
+        from lms.models import WalletTransaction, Course, CourseOwnership, Profile
+        from django.contrib.auth.models import User
+        
+        self.site = AdminSite()
+        self.admin = WalletTransactionAdmin(WalletTransaction, self.site)
+        
+        self.student = User.objects.create_user(username='student_admin_tx', password='password123')
+        self.course = Course.objects.create(title="Django Admin Course", price=120000.00)
+        
+    def test_deposit_approval_via_bulk_action(self):
+        from lms.models import WalletTransaction
+        tx = WalletTransaction.objects.create(
+            user=self.student,
+            amount=50000.00,
+            transaction_type='DEPOSIT',
+            status='PENDING'
+        )
+        queryset = WalletTransaction.objects.filter(id=tx.id)
+        self.admin.approve_transaction(request=None, queryset=queryset)
+        
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'APPROVED')
+        profile = self.student.profile
+        profile.refresh_from_db()
+        self.assertEqual(float(profile.wallet_balance), 50000.00)
+        
+    def test_payment_approval_via_bulk_action(self):
+        from lms.models import WalletTransaction, CourseOwnership
+        tx = WalletTransaction.objects.create(
+            user=self.student,
+            amount=120000.00,
+            transaction_type='PAYMENT',
+            course=self.course,
+            status='PENDING'
+        )
+        queryset = WalletTransaction.objects.filter(id=tx.id)
+        self.admin.approve_transaction(request=None, queryset=queryset)
+        
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'APPROVED')
+        self.assertTrue(CourseOwnership.objects.filter(user=self.student, course=self.course).exists())
+        profile = self.student.profile
+        profile.refresh_from_db()
+        self.assertEqual(float(profile.wallet_balance), 0.00)
+        
+    def test_payment_approval_via_save_model(self):
+        from lms.models import WalletTransaction, CourseOwnership
+        tx = WalletTransaction.objects.create(
+            user=self.student,
+            amount=120000.00,
+            transaction_type='PAYMENT',
+            course=self.course,
+            status='PENDING'
+        )
+        
+        # Simulate admin changing status to APPROVED in the change form and saving
+        tx.status = 'APPROVED'
+        self.admin.save_model(request=None, obj=tx, form=None, change=True)
+        
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'APPROVED')
+        self.assertTrue(CourseOwnership.objects.filter(user=self.student, course=self.course).exists())
+        profile = self.student.profile
+        profile.refresh_from_db()
+        self.assertEqual(float(profile.wallet_balance), 0.00)
+
+    def test_course_bundle_approval_via_save_model(self):
+        from lms.models import WalletTransaction, CourseOwnership, CourseBundle
+        course2 = Course.objects.create(title="Django Admin Course 2", price=80000.00)
+        bundle = CourseBundle.objects.create(title="Combo Admin", price=150000.00)
+        bundle.courses.add(self.course, course2)
+        
+        tx = WalletTransaction.objects.create(
+            user=self.student,
+            amount=150000.00,
+            transaction_type='PAYMENT',
+            course_bundle=bundle,
+            status='PENDING'
+        )
+        
+        tx.status = 'APPROVED'
+        self.admin.save_model(request=None, obj=tx, form=None, change=True)
+        
+        tx.refresh_from_db()
+        self.assertEqual(tx.status, 'APPROVED')
+        self.assertTrue(CourseOwnership.objects.filter(user=self.student, course=self.course).exists())
+        self.assertTrue(CourseOwnership.objects.filter(user=self.student, course=course2).exists())
+
+    def test_test_and_test_bundle_approval_via_save_model(self):
+        from lms.models import WalletTransaction, TestOwnership, Test, TestBundle
+        test1 = Test.objects.create(title="Admin Test 1", price=5000.00)
+        test2 = Test.objects.create(title="Admin Test 2", price=10000.00)
+        test_bundle = TestBundle.objects.create(title="Admin Test Bundle", price=12000.00)
+        test_bundle.tests.add(test1, test2)
+        
+        tx_test = WalletTransaction.objects.create(
+            user=self.student,
+            amount=5000.00,
+            transaction_type='PAYMENT',
+            test=test1,
+            status='PENDING'
+        )
+        tx_test.status = 'APPROVED'
+        self.admin.save_model(request=None, obj=tx_test, form=None, change=True)
+        
+        tx_test.refresh_from_db()
+        self.assertEqual(tx_test.status, 'APPROVED')
+        ownership = TestOwnership.objects.filter(user=self.student, test=test1).first()
+        self.assertIsNotNone(ownership)
+        self.assertTrue(ownership.agreed_rules)
+        self.assertIsNotNone(ownership.registered_at)
+        
+        tx_bundle = WalletTransaction.objects.create(
+            user=self.student,
+            amount=12000.00,
+            transaction_type='PAYMENT',
+            test_bundle=test_bundle,
+            status='PENDING'
+        )
+        tx_bundle.status = 'APPROVED'
+        self.admin.save_model(request=None, obj=tx_bundle, form=None, change=True)
+        
+        tx_bundle.refresh_from_db()
+        self.assertEqual(tx_bundle.status, 'APPROVED')
+        self.assertTrue(TestOwnership.objects.filter(user=self.student, test=test1).exists())
+        self.assertTrue(TestOwnership.objects.filter(user=self.student, test=test2).exists())
+
+
+class CourseExpiryAndExtensionTests(TestCase):
+    def setUp(self):
+        self.student = User.objects.create_user(username="student", password="password")
+        # Đảm bảo Profile được tạo và có ví tiền đầy đủ
+        self.student.profile.wallet_balance = 200000.00
+        self.student.profile.save()
+        
+        self.course_30_days = Course.objects.create(
+            title="Khóa học 30 ngày",
+            price=100000.00,
+            duration_days=30
+        )
+        
+        self.course_lifetime = Course.objects.create(
+            title="Khóa học trọn đời",
+            price=50000.00,
+            duration_days=0
+        )
+        
+    def test_buy_course_calculates_expiry(self):
+        from django.utils import timezone
+        import datetime
+        
+        # Mua khóa học 30 ngày
+        self.client.login(username="student", password="password")
+        response = self.client.post(reverse('buy_course', args=[self.course_30_days.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        # Kiểm tra expires_at
+        ownership = CourseOwnership.objects.get(user=self.student, course=self.course_30_days)
+        self.assertIsNotNone(ownership.expires_at)
+        
+        # Đảm bảo expires_at xấp xỉ 30 ngày sau
+        now = timezone.now()
+        expected_expiry = now + datetime.timedelta(days=30)
+        self.assertAlmostEqual(ownership.expires_at, expected_expiry, delta=datetime.timedelta(seconds=5))
+        self.assertFalse(ownership.is_expired)
+        
+    def test_lifetime_course_no_expiry(self):
+        self.client.login(username="student", password="password")
+        response = self.client.post(reverse('buy_course', args=[self.course_lifetime.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        ownership = CourseOwnership.objects.get(user=self.student, course=self.course_lifetime)
+        self.assertIsNone(ownership.expires_at)
+        self.assertFalse(ownership.is_expired)
+        
+    def test_expired_course_blocks_lesson_access(self):
+        from django.utils import timezone
+        import datetime
+        
+        lesson = Lesson.objects.create(
+            course=self.course_30_days,
+            title="Bài học 1",
+            lesson_type="THEORY",
+            order_index=1
+        )
+        
+        # Tạo ownership hết hạn sẵn
+        ownership = CourseOwnership.objects.create(
+            user=self.student,
+            course=self.course_30_days,
+            expires_at=timezone.now() - datetime.timedelta(days=1)
+        )
+        self.assertTrue(ownership.is_expired)
+        self.assertFalse(CourseOwnership.has_active_ownership(self.student, self.course_30_days))
+        
+        # Thử truy cập lesson
+        self.client.login(username="student", password="password")
+        response = self.client.get(reverse('lesson_detail', args=[self.course_30_days.id, lesson.id]))
+        # Phải redirect về course_detail
+        self.assertEqual(response.status_code, 302)
+        
+    def test_admin_extension_restores_access(self):
+        from django.utils import timezone
+        import datetime
+        
+        lesson = Lesson.objects.create(
+            course=self.course_30_days,
+            title="Bài học 1",
+            lesson_type="THEORY",
+            order_index=1
+        )
+        
+        # Tạo ownership hết hạn
+        ownership = CourseOwnership.objects.create(
+            user=self.student,
+            course=self.course_30_days,
+            expires_at=timezone.now() - datetime.timedelta(days=1)
+        )
+        self.assertTrue(ownership.is_expired)
+        
+        # Thử truy cập lesson -> bị block (redirect)
+        self.client.login(username="student", password="password")
+        response = self.client.get(reverse('lesson_detail', args=[self.course_30_days.id, lesson.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        # Admin gia hạn (cộng thêm 10 ngày trong tương lai)
+        ownership.expires_at = timezone.now() + datetime.timedelta(days=10)
+        ownership.save()
+        
+        # Thử truy cập lesson -> thành công (200 OK)
+        response = self.client.get(reverse('lesson_detail', args=[self.course_30_days.id, lesson.id]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_repurchase_after_expiration(self):
+        from django.utils import timezone
+        import datetime
+        
+        # Tạo ownership hết hạn
+        ownership = CourseOwnership.objects.create(
+            user=self.student,
+            course=self.course_30_days,
+            expires_at=timezone.now() - datetime.timedelta(days=5)
+        )
+        self.assertTrue(ownership.is_expired)
+        
+        # Mua lại
+        self.client.login(username="student", password="password")
+        response = self.client.post(reverse('buy_course', args=[self.course_30_days.id]))
+        self.assertEqual(response.status_code, 302)
+        
+        # Kiểm tra expires_at mới
+        ownership.refresh_from_db()
+        self.assertFalse(ownership.is_expired)
+        expected_expiry = timezone.now() + datetime.timedelta(days=30)
+        self.assertAlmostEqual(ownership.expires_at, expected_expiry, delta=datetime.timedelta(seconds=5))
+
+
+class TeacherDashboardTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from lms.models import Course, Lesson, LessonProgress, CourseOwnership
+        
+        # Tạo 2 giáo viên
+        self.teacher1 = User.objects.create_user(username="teacher1", password="password")
+        self.teacher1.profile.can_create_courses = True
+        self.teacher1.profile.save()
+        
+        self.teacher2 = User.objects.create_user(username="teacher2", password="password")
+        self.teacher2.profile.can_create_courses = True
+        self.teacher2.profile.save()
+        
+        # Tạo 1 học sinh
+        self.student = User.objects.create_user(username="student", password="password")
+        
+        # Tạo khóa học cho teacher1
+        self.course1 = Course.objects.create(
+            title="Course 1",
+            description="Desc 1",
+            creator=self.teacher1
+        )
+        # Thêm 4 bài học cho course1
+        self.lesson1 = Lesson.objects.create(course=self.course1, title="L1", order_index=1, lesson_type="THEORY")
+        self.lesson2 = Lesson.objects.create(course=self.course1, title="L2", order_index=2, lesson_type="THEORY")
+        self.lesson3 = Lesson.objects.create(course=self.course1, title="L3", order_index=3, lesson_type="EXERCISE")
+        self.lesson4 = Lesson.objects.create(course=self.course1, title="L4", order_index=4, lesson_type="TEST")
+        
+        # Tạo khóa học cho teacher2
+        self.course2 = Course.objects.create(
+            title="Course 2",
+            description="Desc 2",
+            creator=self.teacher2
+        )
+        
+        # Học sinh đăng ký course1
+        CourseOwnership.objects.create(user=self.student, course=self.course1)
+        
+    def test_student_cannot_access_dashboard(self):
+        from django.urls import reverse
+        self.client.login(username="student", password="password")
+        
+        # Thử vào danh sách khóa học của giáo viên
+        response = self.client.get(reverse('teacher_courses_progress'))
+        self.assertEqual(response.status_code, 302) # Bị chặn, redirect
+        
+        # Thử vào chi tiết tiến độ khóa học
+        response = self.client.get(reverse('teacher_course_detail_progress', args=[self.course1.id]))
+        self.assertEqual(response.status_code, 302)
+        
+    def test_teacher_access_own_course_dashboard(self):
+        from django.urls import reverse
+        self.client.login(username="teacher1", password="password")
+        
+        # Truy cập danh sách khóa học
+        response = self.client.get(reverse('teacher_courses_progress'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Course 1")
+        self.assertNotContains(response, "Course 2") # Không hiện khóa học của người khác
+        
+        # Truy cập chi tiết tiến độ khóa học của mình
+        response = self.client.get(reverse('teacher_course_detail_progress', args=[self.course1.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "student")
+        
+    def test_teacher_cannot_access_other_teacher_course(self):
+        from django.urls import reverse
+        self.client.login(username="teacher1", password="password")
+        
+        # Thử truy cập chi tiết tiến độ khóa học của teacher2
+        response = self.client.get(reverse('teacher_course_detail_progress', args=[self.course2.id]))
+        self.assertEqual(response.status_code, 302) # Bị chặn và redirect
+        
+    def test_progress_calculation_accuracy(self):
+        from django.urls import reverse
+        from lms.models import LessonProgress
+        
+        # Cho học sinh hoàn thành 2 trên 4 bài học (50%)
+        LessonProgress.objects.create(user=self.student, lesson=self.lesson1, is_completed=True)
+        LessonProgress.objects.create(user=self.student, lesson=self.lesson2, is_completed=True)
+        # Bài 3 chưa xong, bài 4 chưa xong
+        
+        self.client.login(username="teacher1", password="password")
+        response = self.client.get(reverse('teacher_course_detail_progress', args=[self.course1.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        # Kiểm tra xem có hiển thị 50% và "2 / 4 bài"
+        self.assertContains(response, "50%")
+        self.assertContains(response, "2")
+        self.assertContains(response, "4 bài")
+
+
+class HomepageTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from lms.models import Course, Lesson, LessonProgress, Test, Attempt
+        from django.utils import timezone
+        import datetime
+        
+        # 1. Tạo users
+        self.student = User.objects.create_user(username="student1", password="password")
+        self.teacher = User.objects.create_user(username="teacher1", password="password")
+        
+        # 2. Tạo khóa học
+        self.course_cpp = Course.objects.create(
+            title="Khóa học C++ Cơ bản",
+            description="Học lập trình C++ từ đầu",
+            creator=self.teacher,
+            price=100000
+        )
+        self.course_python = Course.objects.create(
+            title="Lập trình Python Nâng cao",
+            description="Tìm hiểu Python nâng cao",
+            creator=self.teacher,
+            price=0
+        )
+        
+        # 3. Tạo bài học
+        self.lesson1 = Lesson.objects.create(
+            course=self.course_cpp,
+            title="Bài 1: Giới thiệu C++",
+            order_index=1,
+            lesson_type="THEORY"
+        )
+        self.lesson2 = Lesson.objects.create(
+            course=self.course_cpp,
+            title="Bài 2: Biến và Hằng",
+            order_index=2,
+            lesson_type="THEORY"
+        )
+        
+        # 4. Tạo đề thi Standalone
+        self.test_tracnghiem = Test.objects.create(
+            title="Đề thi Trắc nghiệm C++",
+            duration=30,
+            test_type="STANDALONE",
+            price=0
+        )
+        self.test_python = Test.objects.create(
+            title="Đề thi Python OOP",
+            duration=45,
+            test_type="STANDALONE",
+            price=50000
+        )
+        # Một đề thi KHÔNG phải STANDALONE (ví dụ LESSON_ONLY) để kiểm tra lọc
+        self.test_lesson = Test.objects.create(
+            title="Kiểm tra bài học C++",
+            duration=15,
+            test_type="LESSON_ONLY",
+            price=0
+        )
+        
+    def test_homepage_search_dual(self):
+        from django.urls import reverse
+        
+        # Gửi request tìm kiếm với từ khóa "C++"
+        response = self.client.get(reverse('course_list') + "?q=C%2B%2B")
+        self.assertEqual(response.status_code, 200)
+        
+        # Đảm bảo kết quả tìm kiếm khóa học và đề thi Standalone có chứa C++ được hiển thị
+        self.assertContains(response, "Khóa học C++ Cơ bản")
+        self.assertContains(response, "Đề thi Trắc nghiệm C++")
+        
+        # Đảm bảo đề thi không phải Standalone hoặc không liên quan không xuất hiện
+        # (Đề thi "Kiểm tra bài học C++" có test_type="LESSON_ONLY" nên không được xuất hiện trong standalone search)
+        self.assertNotContains(response, "Kiểm tra bài học C++")
+        self.assertNotContains(response, "Lập trình Python Nâng cao")
+        
+    def test_homepage_activities_aggregation(self):
+        from django.urls import reverse
+        from lms.models import LessonProgress, Attempt
+        from django.utils import timezone
+        import datetime
+        
+        now = timezone.now()
+        
+        # Tạo 4 hoạt động bài học và 4 hoạt động thi thử với các timestamp khác nhau
+        # Hoạt động bài học hoàn thành
+        p1 = LessonProgress.objects.create(user=self.student, lesson=self.lesson1, is_completed=True)
+        p1.completed_at = now - datetime.timedelta(minutes=10)
+        p1.save()
+        
+        p2 = LessonProgress.objects.create(user=self.student, lesson=self.lesson2, is_completed=True)
+        p2.completed_at = now - datetime.timedelta(minutes=5)
+        p2.save()
+        
+        # Lượt thi thử
+        a1 = Attempt.objects.create(user=self.student, test=self.test_tracnghiem)
+        Attempt.objects.filter(pk=a1.pk).update(
+            start_time=now - datetime.timedelta(minutes=8),
+            end_time=now - datetime.timedelta(minutes=7),
+            total_score=9.5
+        )
+        
+        a2 = Attempt.objects.create(user=self.student, test=self.test_python)
+        Attempt.objects.filter(pk=a2.pk).update(
+            start_time=now - datetime.timedelta(minutes=2)
+        )
+        
+        # Truy cập trang chủ không có query search
+        response = self.client.get(reverse('course_list'))
+        self.assertEqual(response.status_code, 200)
+        
+        # Lấy danh sách activities truyền sang template qua context
+        activities = response.context['activities']
+        
+        # Đảm bảo danh sách hoạt động được gộp và giới hạn tối đa là 6 hoạt động
+        self.assertTrue(len(activities) <= 6)
+        
+        # Đảm bảo các hoạt động được sắp xếp theo thời gian giảm dần (mới nhất lên đầu)
+        timestamps = [act['timestamp'] for act in activities]
+        self.assertEqual(timestamps, sorted(timestamps, reverse=True))
+        
+        # Kiểm tra nội dung hoạt động hiển thị trong response HTML
+        self.assertContains(response, "đang làm đề thi")
+        self.assertContains(response, "Đề thi Python OOP")
+        self.assertContains(response, "đã hoàn thành bài học")
+        self.assertContains(response, "Bài 2: Biến và Hằng")
+        self.assertContains(response, "đã hoàn thành đề thi")
+        self.assertContains(response, "Đạt 9,5 điểm")
+
+    def test_all_courses_view(self):
+        from django.urls import reverse
+        response = self.client.get(reverse('all_courses'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/all_courses.html')
+        
+        # Đảm bảo hiển thị tất cả các khóa học
+        self.assertContains(response, "Khóa học C++ Cơ bản")
+        self.assertContains(response, "Lập trình Python Nâng cao")
+
+
+class StudentMySpaceTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+        from lms.models import Course, Test, CourseOwnership, TestOwnership, Lesson, LessonProgress, Attempt
+        
+        # 1. Tạo users
+        self.student = User.objects.create_user(username="student_myspace", password="password")
+        self.teacher = User.objects.create_user(username="teacher_myspace", password="password")
+        
+        # 2. Tạo khóa học và bài học
+        self.course_owned = Course.objects.create(
+            title="Khóa học C++ Đã Mua",
+            description="Lập trình C++ nâng cao",
+            creator=self.teacher,
+            price=50000
+        )
+        self.lesson1 = Lesson.objects.create(
+            course=self.course_owned,
+            title="Bài 1: Struct",
+            order_index=1,
+            lesson_type="THEORY"
+        )
+        self.lesson2 = Lesson.objects.create(
+            course=self.course_owned,
+            title="Bài 2: Class",
+            order_index=2,
+            lesson_type="THEORY"
+        )
+        
+        self.course_not_owned = Course.objects.create(
+            title="Khóa học Java Chưa Mua",
+            description="Lập trình Java từ đầu",
+            creator=self.teacher,
+            price=60000
+        )
+        
+        # 3. Tạo đề thi Standalone
+        self.test_owned = Test.objects.create(
+            title="Đề thi C++ Đã Mua",
+            duration=30,
+            test_type="STANDALONE",
+            price=20000
+        )
+        self.test_not_owned = Test.objects.create(
+            title="Đề thi Java Chưa Mua",
+            duration=30,
+            test_type="STANDALONE",
+            price=30000
+        )
+        
+        # 4. Gán quyền sở hữu (mua) cho student
+        CourseOwnership.objects.create(
+            user=self.student,
+            course=self.course_owned
+        )
+        TestOwnership.objects.create(
+            user=self.student,
+            test=self.test_owned,
+            agreed_rules=True
+        )
+        
+        # 5. Cho học sinh hoàn thành 1 trong 2 bài học của khóa học (50% tiến độ)
+        LessonProgress.objects.create(
+            user=self.student,
+            lesson=self.lesson1,
+            is_completed=True
+        )
+        
+        # 6. Cho học sinh làm 2 lần đề thi C++ đã mua, lần cao nhất được 8.5 điểm
+        Attempt.objects.create(
+            user=self.student,
+            test=self.test_owned,
+            total_score=6.0,
+            end_time=timezone.now()
+        )
+        Attempt.objects.create(
+            user=self.student,
+            test=self.test_owned,
+            total_score=8.5,
+            end_time=timezone.now()
+        )
+
+    def test_anonymous_user_redirected(self):
+        from django.urls import reverse
+        
+        # Kiểm tra chặn truy cập /my-courses/
+        response = self.client.get(reverse('my_courses'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/', response.url)
+        
+        # Kiểm tra chặn truy cập /my-tests/
+        response = self.client.get(reverse('my_tests'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/', response.url)
+
+    def test_my_courses_listing_and_progress(self):
+        from django.urls import reverse
+        self.client.login(username="student_myspace", password="password")
+        
+        response = self.client.get(reverse('my_courses'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/my_courses.html')
+        
+        # Đảm bảo hiển thị khóa học đã mua
+        self.assertContains(response, "Khóa học C++ Đã Mua")
+        
+        # Đảm bảo KHÔNG hiển thị khóa học chưa mua
+        self.assertNotContains(response, "Khóa học Java Chưa Mua")
+        
+        # Đảm bảo tính toán đúng tiến độ: 1/2 bài học hoàn thành => 50%
+        courses_in_context = response.context['courses']
+        self.assertEqual(len(courses_in_context), 1)
+        self.assertEqual(courses_in_context[0]['progress_percent'], 50)
+        self.assertEqual(courses_in_context[0]['completed_lessons'], 1)
+        self.assertEqual(courses_in_context[0]['total_lessons'], 2)
+        
+        # Kiểm tra text hiển thị tiến độ và phần trăm trên giao diện
+        self.assertContains(response, "50%")
+        self.assertContains(response, "1")
+        self.assertContains(response, "/ 2 bài")
+
+    def test_my_tests_listing_and_scores(self):
+        from django.urls import reverse
+        self.client.login(username="student_myspace", password="password")
+        
+        response = self.client.get(reverse('my_tests'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/my_tests.html')
+        
+        # Đảm bảo hiển thị đề thi đã mua
+        self.assertContains(response, "Đề thi C++ Đã Mua")
+        
+        # Đảm bảo KHÔNG hiển thị đề thi chưa mua
+        self.assertNotContains(response, "Đề thi Java Chưa Mua")
+        
+        # Đảm bảo thống kê số lượt đã thi (2 lượt) và điểm cao nhất (8.5 điểm)
+        tests_in_context = response.context['tests']
+        self.assertEqual(len(tests_in_context), 1)
+        self.assertEqual(tests_in_context[0]['attempts_count'], 2)
+        self.assertEqual(tests_in_context[0]['best_attempt'].total_score, 8.5)
+        
+        # Kiểm tra nội dung trên giao diện
+        self.assertContains(response, "8,5")
+        self.assertContains(response, "2 lần")
+
+
+
 

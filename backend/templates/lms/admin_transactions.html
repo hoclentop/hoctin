@@ -143,6 +143,7 @@
                     <tr>
                         <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Mã giao dịch</th>
                         <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Người nạp</th>
+                        <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Mô tả / Loại GD</th>
                         <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Số tiền</th>
                         <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Ngày gửi yêu cầu</th>
                         <th class="px-8 py-5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Ảnh biên lai</th>
@@ -169,6 +170,26 @@
                                         <div class="text-sm font-extrabold text-slate-800 font-outfit">{{ tx.user.username }}</div>
                                         <div class="text-xs text-slate-400 font-light mt-0.5">{{ tx.user.email|default:"Chưa có email" }}</div>
                                     </div>
+                                </div>
+                            </td>
+                            <!-- Description / Transaction Type -->
+                            <td class="px-8 py-5">
+                                <div class="text-sm font-semibold text-slate-700">
+                                    {% if tx.course %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 mb-1">Khóa học</span>
+                                        <div class="text-xs text-slate-500 truncate max-w-[200px]" title="{{ tx.course.title }}">{{ tx.course.title }}</div>
+                                    {% elif tx.course_bundle %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-pink-50 text-pink-700 border border-pink-200 mb-1">Combo Khóa</span>
+                                        <div class="text-xs text-slate-500 truncate max-w-[200px]" title="{{ tx.course_bundle.title }}">{{ tx.course_bundle.title }}</div>
+                                    {% elif tx.test %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 mb-1">Đề thi</span>
+                                        <div class="text-xs text-slate-500 truncate max-w-[200px]" title="{{ tx.test.title }}">{{ tx.test.title }}</div>
+                                    {% elif tx.test_bundle %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-1">Gói đề</span>
+                                        <div class="text-xs text-slate-500 truncate max-w-[200px]" title="{{ tx.test_bundle.title }}">{{ tx.test_bundle.title }}</div>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">Nạp tiền vào ví</span>
+                                    {% endif %}
                                 </div>
                             </td>
                             <!-- Amount -->

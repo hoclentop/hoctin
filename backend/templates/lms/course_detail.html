@@ -93,7 +93,32 @@
                     {% if course.price == 0 %}Miễn phí{% else %}{{ course.price|floatformat:0 }}đ{% endif %}
                 </div>
                 
-                {% if is_owned %}
+                {% if ownership and not is_owned %}
+                    <!-- Trường hợp đã từng mua nhưng hết hạn -->
+                    <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-left">
+                        <div class="flex gap-2.5">
+                            <svg class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <div>
+                                <h4 class="text-xs font-bold text-red-800">Quyền truy cập đã hết hạn</h4>
+                                <p class="text-[11px] text-red-700 mt-1 leading-relaxed">
+                                    Khóa học của bạn đã hết hạn học vào ngày {{ ownership.expires_at|date:"d/m/Y H:i" }}. Vui lòng đăng ký/mua lại để tiếp tục học tập.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {% if course.price == 0 %}
+                        <form method="POST" action="{% url 'buy_course' course.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100">
+                                Kích hoạt lại (Miễn phí)
+                            </button>
+                        </form>
+                    {% else %}
+                        <a href="{% url 'course_checkout' course.id %}" class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100">
+                            Mua lại khóa học ngay
+                        </a>
+                    {% endif %}
+                {% elif is_owned %}
                     {% if first_lesson_id %}
                         <a href="{% url 'lesson_detail' course.id first_lesson_id %}" 
                            class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100">
@@ -104,25 +129,55 @@
                             Chưa có bài học
                         </button>
                     {% endif %}
+                    
+                    <!-- Hiển thị thời hạn học của user -->
+                    <div class="mt-4 p-3 bg-indigo-50/50 border border-indigo-100/50 rounded-xl text-left text-xs text-indigo-800 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <span>
+                            {% if ownership.expires_at %}
+                                Hạn học: <strong class="font-bold">{{ ownership.expires_at|date:"d/m/Y H:i" }}</strong>
+                            {% else %}
+                                Hạn học: <strong class="font-bold">Trọn đời</strong>
+                            {% endif %}
+                        </span>
+                    </div>
+                {% elif has_pending_transaction %}
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-left">
+                        <div class="flex gap-2.5">
+                            <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <div>
+                                <h4 class="text-xs font-bold text-amber-800">Thanh toán đang chờ duyệt</h4>
+                                <p class="text-[11px] text-amber-700 mt-1 leading-relaxed">Giao dịch mua khóa học này của bạn đang được Admin xác thực biên lai. Vui lòng chờ duyệt.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button disabled class="w-full bg-amber-100 text-amber-600 py-4 rounded-xl font-bold cursor-not-allowed flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Đang chờ duyệt...
+                    </button>
                 {% else %}
-                    <form method="POST" action="{% url 'buy_course' course.id %}">
-                        {% csrf_token %}
-                        {% if course.price == 0 %}
+                    {% if course.price == 0 %}
+                        <form method="POST" action="{% url 'buy_course' course.id %}">
+                            {% csrf_token %}
                             <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100">
                                 Đăng ký học (Miễn phí)
                             </button>
-                        {% else %}
-                            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100">
-                                Mua khóa học ngay
-                            </button>
-                        {% endif %}
-                    </form>
+                        </form>
+                    {% else %}
+                        <a href="{% url 'course_checkout' course.id %}" class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100">
+                            Mua khóa học ngay
+                        </a>
+                    {% endif %}
                 {% endif %}
                 
                 <div class="mt-6 flex flex-col items-center justify-center text-xs text-gray-500 space-y-2">
                     <span class="flex items-center gap-1.5">
                         <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                        Truy cập trọn đời • Hỗ trợ 24/7
+                        {% if course.duration_days and course.duration_days > 0 %}
+                            Hạn học {{ course.duration_days }} ngày • Hỗ trợ 24/7
+                        {% else %}
+                            Truy cập trọn đời • Hỗ trợ 24/7
+                        {% endif %}
                     </span>
                     <span>Chế độ học: <strong class="text-gray-700">{{ course.get_learning_mode_display }}</strong></span>
                 </div>
