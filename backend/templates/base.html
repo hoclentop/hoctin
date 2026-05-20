@@ -52,7 +52,7 @@
                 <div class="flex items-center space-x-4">
                     {% if user.is_authenticated %}
                         <div class="text-sm text-gray-700">
-                            Ví: <span class="font-bold text-green-600">{{ user.profile.wallet_balance }}đ</span>
+                            Ví: <span class="font-bold text-green-600">{{ user.profile.wallet_balance|floatformat:0 }}đ</span>
                         </div>
                         <a href="{% url 'edit_profile' %}" class="flex items-center space-x-1.5 text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors" title="Chỉnh sửa thông tin cá nhân">
                             <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

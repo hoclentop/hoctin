@@ -90,7 +90,7 @@
                 {% endif %}
                 
                 <div class="text-4xl font-extrabold text-indigo-600 mb-6 font-outfit">
-                    {% if course.price == 0 %}Miễn phí{% else %}{{ course.price }}đ{% endif %}
+                    {% if course.price == 0 %}Miễn phí{% else %}{{ course.price|floatformat:0 }}đ{% endif %}
                 </div>
                 
                 {% if is_owned %}

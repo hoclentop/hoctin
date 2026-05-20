@@ -338,6 +338,46 @@ class ProfileTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='tester', password='password123')
         
+    def test_register_user_success(self):
+        from django.urls import reverse
+        from django.contrib.auth.models import User
+        
+        post_data = {
+            'username': 'new_registered_user',
+            'password1': 'securepass123',
+            'password2': 'securepass123',
+        }
+        response = self.client.post(reverse('register'), post_data)
+        self.assertEqual(response.status_code, 302) # redirects to course_list on success
+        
+        # Verify user and profile created
+        new_user = User.objects.get(username='new_registered_user')
+        self.assertIsNotNone(new_user)
+        self.assertIsNotNone(new_user.profile)
+        
+    def test_password_change_success(self):
+        from django.urls import reverse
+        self.client.login(username='tester', password='password123')
+        
+        # Get password change page
+        response = self.client.get(reverse('password_change'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'registration/password_change.html')
+        
+        # Post change password form
+        post_data = {
+            'old_password': 'password123',
+            'new_password1': 'newsecurepassword123',
+            'new_password2': 'newsecurepassword123',
+        }
+        response = self.client.post(reverse('password_change'), post_data)
+        self.assertEqual(response.status_code, 302) # Redirect to password change done page
+        
+        # Verify done page redirects
+        response = self.client.get(reverse('password_change_done'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'registration/password_change_done.html')
+        
     def test_profile_edit_requires_login(self):
         from django.urls import reverse
         # Non-logged in users should be redirected to login page
@@ -551,3 +591,124 @@ class CourseBundleTestCase(TestCase):
         
         # No ownership should be granted
         self.assertFalse(CourseOwnership.objects.filter(user=self.user, course=self.course1).exists())
+
+
+class AdminWalletTransactionTestCase(TestCase):
+    def setUp(self):
+        # Create users
+        self.student = User.objects.create_user(username='student_tx', password='password123')
+        self.student_profile = self.student.profile
+        self.student_profile.wallet_balance = 0.00
+        self.student_profile.save()
+        
+        self.superuser = User.objects.create_superuser(username='admin_tx', password='adminpassword')
+        
+        # Create a pending transaction
+        self.tx = WalletTransaction.objects.create(
+            user=self.student,
+            amount=100000.00,
+            transaction_type='DEPOSIT',
+            status='PENDING'
+        )
+
+    def test_admin_transactions_view_requires_superuser(self):
+        # Anonymous user redirected to login
+        response = self.client.get(reverse('admin_transactions'))
+        self.assertEqual(response.status_code, 302)
+        
+        # Student user redirected to course list with error message
+        self.client.login(username='student_tx', password='password123')
+        response = self.client.get(reverse('admin_transactions'))
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('course_list'))
+        
+        # Superuser successfully accesses page
+        self.client.login(username='admin_tx', password='adminpassword')
+        response = self.client.get(reverse('admin_transactions'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/admin_transactions.html')
+        self.assertContains(response, "student_tx")
+        self.assertContains(response, "+100000đ")
+
+    def test_approve_transaction_admin_success(self):
+        # Verify student balance is 0
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+        
+        # Superuser approves transaction
+        self.client.login(username='admin_tx', password='adminpassword')
+        response = self.client.post(reverse('approve_transaction_admin', args=[self.tx.id]))
+        self.assertRedirects(response, reverse('admin_transactions'))
+        
+        # Verify transaction status and user balance
+        self.tx.refresh_from_db()
+        self.assertEqual(self.tx.status, 'APPROVED')
+        
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 100000.00)
+
+    def test_approve_transaction_admin_requires_superuser(self):
+        # Student tries to approve
+        self.client.login(username='student_tx', password='password123')
+        response = self.client.post(reverse('approve_transaction_admin', args=[self.tx.id]))
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('course_list'))
+        
+        # Verify status and balance unchanged
+        self.tx.refresh_from_db()
+        self.assertEqual(self.tx.status, 'PENDING')
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+
+    def test_approve_transaction_admin_non_post_rejected(self):
+        # GET request should redirect and do nothing
+        self.client.login(username='admin_tx', password='adminpassword')
+        response = self.client.get(reverse('approve_transaction_admin', args=[self.tx.id]))
+        self.assertRedirects(response, reverse('admin_transactions'))
+        
+        # Verify transaction status and user balance unchanged
+        self.tx.refresh_from_db()
+        self.assertEqual(self.tx.status, 'PENDING')
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+
+    def test_reject_transaction_admin_success(self):
+        # Verify student balance is 0
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+        
+        # Superuser rejects transaction
+        self.client.login(username='admin_tx', password='adminpassword')
+        response = self.client.post(reverse('reject_transaction_admin', args=[self.tx.id]))
+        self.assertRedirects(response, reverse('admin_transactions'))
+        
+        # Verify transaction status and user balance
+        self.tx.refresh_from_db()
+        self.assertEqual(self.tx.status, 'REJECTED')
+        
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+
+    def test_reject_transaction_admin_requires_superuser(self):
+        # Student tries to reject
+        self.client.login(username='student_tx', password='password123')
+        response = self.client.post(reverse('reject_transaction_admin', args=[self.tx.id]))
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('course_list'))
+        
+        # Verify status and balance unchanged
+        self.tx.refresh_from_db()
+        self.assertEqual(self.tx.status, 'PENDING')
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+
+    def test_reject_transaction_admin_non_post_rejected(self):
+        # GET request should redirect and do nothing
+        self.client.login(username='admin_tx', password='adminpassword')
+        response = self.client.get(reverse('reject_transaction_admin', args=[self.tx.id]))
+        self.assertRedirects(response, reverse('admin_transactions'))
+        
+        # Verify transaction status and user balance unchanged
+        self.tx.refresh_from_db()
+        self.assertEqual(self.tx.status, 'PENDING')
+        self.student_profile.refresh_from_db()
+        self.assertEqual(float(self.student_profile.wallet_balance), 0.00)
+

@@ -42,7 +42,7 @@
             <!-- Wallet widget -->
             <div class="bg-white bg-opacity-10 backdrop-blur-md border border-white border-opacity-25 rounded-2xl px-5 py-4 text-center md:text-right shadow-md">
                 <span class="text-xs text-indigo-100 uppercase tracking-wider font-semibold">Số dư ví</span>
-                <p class="text-2xl font-bold mt-1 text-green-300 font-outfit">{{ profile.wallet_balance }}đ</p>
+                <p class="text-2xl font-bold mt-1 text-green-300 font-outfit">{{ profile.wallet_balance|floatformat:0 }}đ</p>
                 <a href="{% url 'wallet_deposit' %}" class="inline-flex items-center text-xs text-white hover:text-indigo-200 mt-2 font-medium transition-colors">
                     Nạp tiền
                     <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,6 +102,14 @@
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1.5" for="{{ user_form.email.id_for_label }}">Email</label>
                         {{ user_form.email }}
+                    </div>
+                    
+                    <div class="pt-5 mt-5 border-t border-gray-100 flex items-center justify-between">
+                        <span class="text-xs text-gray-400 font-medium">Bảo mật tài khoản</span>
+                        <a href="{% url 'password_change' %}" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
+                            Đổi mật khẩu tài khoản
+                            <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                        </a>
                     </div>
                 </div>
             </div>

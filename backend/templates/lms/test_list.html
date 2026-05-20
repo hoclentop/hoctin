@@ -44,7 +44,7 @@
         </div>
         <div class="flex items-center justify-between mt-6 pt-4 border-t border-gray-50">
             <span class="text-lg font-bold {% if test.price == 0 %}text-green-600{% else %}text-indigo-600{% endif %}">
-                {% if test.price == 0 %}Miễn phí{% else %}{{ test.price }}đ{% endif %}
+                {% if test.price == 0 %}Miễn phí{% else %}{{ test.price|floatformat:0 }}đ{% endif %}
             </span>
             <div class="flex items-center gap-2">
                 {% if user.is_superuser or test.creator == user %}

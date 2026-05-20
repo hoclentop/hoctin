@@ -1,5 +1,6 @@
-from django.urls import path
+from django.urls import path, reverse_lazy
 from django.views.generic import TemplateView
+from django.contrib.auth import views as auth_views
 from . import views
 
 urlpatterns = [
@@ -15,6 +16,14 @@ urlpatterns = [
     path('test/<int:test_id>/leaderboard/', views.leaderboard, name='leaderboard'),
     path('wallet/deposit/', views.wallet_deposit, name='wallet_deposit'),
     path('profile/edit/', views.edit_profile, name='edit_profile'),
+    path('password-change/', auth_views.PasswordChangeView.as_view(
+        template_name='registration/password_change.html',
+        form_class=views.StyledPasswordChangeForm,
+        success_url=reverse_lazy('password_change_done')
+    ), name='password_change'),
+    path('password-change/done/', auth_views.PasswordChangeDoneView.as_view(
+        template_name='registration/password_change_done.html'
+    ), name='password_change_done'),
     path('register/', views.register, name='register'),
     path('upload-image/', views.upload_image, name='upload_image'),
     path('editor-demo/', TemplateView.as_view(template_name='lms/editor_demo.html'), name='editor_demo'),
@@ -23,6 +32,9 @@ urlpatterns = [
     path('attempt/<int:attempt_id>/delete/', views.delete_attempt, name='delete_attempt'),
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('admin-dashboard/toggle/<int:user_id>/<str:perm_type>/', views.toggle_staff_permission, name='toggle_staff_permission'),
+    path('admin-dashboard/transactions/', views.admin_transactions, name='admin_transactions'),
+    path('admin-dashboard/transactions/<int:tx_id>/approve/', views.approve_transaction_admin, name='approve_transaction_admin'),
+    path('admin-dashboard/transactions/<int:tx_id>/reject/', views.reject_transaction_admin, name='reject_transaction_admin'),
     path('questions/create/', views.create_question, name='create_question'),
     path('questions/<int:pk>/edit/', views.edit_question, name='edit_question'),
     path('questions/', views.question_list, name='question_list'),

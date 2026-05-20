@@ -1,0 +1,357 @@
+{% extends 'base.html' %}
+
+{% block title %}Duyệt yêu cầu nạp tiền - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 font-outfit" x-data="{ 
+    selectedImage: null,
+    showConfirmModal: false,
+    confirmTxId: null,
+    confirmActionUrl: '',
+    confirmActionTitle: '',
+    confirmActionMessage: '',
+    confirmTxAmount: '',
+    confirmTxUser: '',
+    openConfirm(txId, action, amount, username) {
+        this.confirmTxId = txId;
+        this.confirmTxAmount = amount;
+        this.confirmTxUser = username;
+        if (action === 'approve') {
+            this.confirmActionUrl = `/admin-dashboard/transactions/${txId}/approve/`;
+            this.confirmActionTitle = 'Xác nhận Phê duyệt';
+            this.confirmActionMessage = `Bạn có chắc chắn muốn phê duyệt giao dịch nạp tiền trị giá ${amount}đ cho tài khoản <strong>${username}</strong>?`;
+        } else {
+            this.confirmActionUrl = `/admin-dashboard/transactions/${txId}/reject/`;
+            this.confirmActionTitle = 'Xác nhận Từ chối';
+            this.confirmActionMessage = `Bạn có chắc chắn muốn từ chối yêu cầu nạp tiền trị giá ${amount}đ của tài khoản <strong>${username}</strong>?`;
+        }
+        this.showConfirmModal = true;
+    }
+}">
+    
+    <!-- Top Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-10 space-y-4 md:space-y-0">
+        <div>
+            <h1 class="text-3xl font-extrabold bg-gradient-to-r from-slate-800 to-indigo-900 bg-clip-text text-transparent flex items-center">
+                <svg class="w-8 h-8 mr-3 text-indigo-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+                Quản trị Tài chính & Giao dịch
+            </h1>
+            <p class="text-slate-400 text-sm font-light mt-1">Duyệt và kiểm tra các yêu cầu nạp tiền ngoại tuyến chuyển khoản ngân hàng của học sinh.</p>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex border-b border-gray-200 mb-8">
+        <a href="{% url 'admin_dashboard' %}" class="border-transparent text-gray-500 hover:text-indigo-600 hover:border-gray-300 border-b-2 py-4 px-6 text-sm font-semibold flex items-center gap-2 transition-all">
+            <svg class="w-4 h-4 text-gray-400 group-hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+            Cấp phép Giáo viên & Staff
+        </a>
+        <a href="{% url 'admin_transactions' %}" class="border-indigo-600 text-indigo-600 border-b-2 py-4 px-6 text-sm font-bold flex items-center gap-2 transition-all">
+            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+            Duyệt yêu cầu nạp tiền
+            {% if pending_count > 0 %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white animate-bounce">
+                    {{ pending_count }}
+                </span>
+            {% endif %}
+        </a>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <!-- Card 1: Pending -->
+        <div class="bg-gradient-to-br from-amber-50/50 to-white p-5 rounded-2xl border border-amber-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-amber-100/80 text-amber-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Chờ duyệt</div>
+                <div class="text-xl font-extrabold text-amber-950 mt-0.5">{{ pending_count }}</div>
+            </div>
+        </div>
+
+        <!-- Card 2: Approved -->
+        <div class="bg-gradient-to-br from-emerald-50/50 to-white p-5 rounded-2xl border border-emerald-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-emerald-100/80 text-emerald-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Đã duyệt</div>
+                <div class="text-xl font-extrabold text-emerald-950 mt-0.5">{{ approved_count }}</div>
+            </div>
+        </div>
+
+        <!-- Card 3: Rejected -->
+        <div class="bg-gradient-to-br from-rose-50/50 to-white p-5 rounded-2xl border border-rose-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-rose-100/80 text-rose-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-rose-500 font-bold uppercase tracking-wider">Từ chối</div>
+                <div class="text-xl font-extrabold text-rose-950 mt-0.5">{{ rejected_count }}</div>
+            </div>
+        </div>
+
+        <!-- Card 4: Total -->
+        <div class="bg-gradient-to-br from-indigo-50/50 to-white p-5 rounded-2xl border border-indigo-100/50 shadow-sm flex items-center space-x-4 hover:shadow-md transition-all">
+            <div class="p-3 bg-indigo-100/80 text-indigo-600 rounded-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Tổng giao dịch</div>
+                <div class="text-xl font-extrabold text-indigo-950 mt-0.5">{{ total_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex bg-gray-100 p-1 rounded-xl">
+            <a href="?status=pending" class="px-4 py-2 rounded-lg text-xs font-bold transition-all {% if status_filter == 'PENDING' %}bg-white text-indigo-600 shadow-sm{% else %}text-gray-500 hover:text-gray-900{% endif %}">
+                Yêu cầu chờ duyệt
+                {% if pending_count > 0 %}
+                    <span class="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded-md text-[9px] font-black">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+            <a href="?status=approved" class="px-4 py-2 rounded-lg text-xs font-bold transition-all {% if status_filter == 'APPROVED' %}bg-white text-indigo-600 shadow-sm{% else %}text-gray-500 hover:text-gray-900{% endif %}">
+                Đã duyệt
+            </a>
+            <a href="?status=rejected" class="px-4 py-2 rounded-lg text-xs font-bold transition-all {% if status_filter == 'REJECTED' %}bg-white text-indigo-600 shadow-sm{% else %}text-gray-500 hover:text-gray-900{% endif %}">
+                Đã từ chối
+            </a>
+            <a href="?status=all" class="px-4 py-2 rounded-lg text-xs font-bold transition-all {% if status_filter == 'ALL' %}bg-white text-indigo-600 shadow-sm{% else %}text-gray-500 hover:text-gray-900{% endif %}">
+                Tất cả lịch sử
+            </a>
+        </div>
+    </div>
+
+    <!-- Table Section -->
+    <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100">
+                <thead class="bg-slate-50/70">
+                    <tr>
+                        <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Mã giao dịch</th>
+                        <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Người nạp</th>
+                        <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Số tiền</th>
+                        <th class="px-8 py-5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Ngày gửi yêu cầu</th>
+                        <th class="px-8 py-5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Ảnh biên lai</th>
+                        <th class="px-8 py-5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Trạng thái</th>
+                        {% if status_filter == 'PENDING' or status_filter == 'ALL' %}
+                            <th class="px-8 py-5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Hành động</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    {% for tx in transactions %}
+                        <tr class="hover:bg-slate-50/30 transition-colors duration-200">
+                            <!-- ID -->
+                            <td class="px-8 py-5 whitespace-nowrap font-mono font-bold text-sm text-slate-800">
+                                #{{ tx.id }}
+                            </td>
+                            <!-- User info -->
+                            <td class="px-8 py-5 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm border border-indigo-100 uppercase shadow-inner">
+                                        {{ tx.user.username|slice:":2" }}
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-extrabold text-slate-800 font-outfit">{{ tx.user.username }}</div>
+                                        <div class="text-xs text-slate-400 font-light mt-0.5">{{ tx.user.email|default:"Chưa có email" }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <!-- Amount -->
+                            <td class="px-8 py-5 whitespace-nowrap font-bold text-emerald-600 font-outfit text-sm">
+                                +{{ tx.amount|floatformat:0 }}đ
+                            </td>
+                            <!-- Created Date -->
+                            <td class="px-8 py-5 whitespace-nowrap text-xs text-slate-500 font-medium">
+                                {{ tx.created_at|date:"d/m/Y H:i:s" }}
+                            </td>
+                            <!-- Proof Image -->
+                            <td class="px-8 py-5 whitespace-nowrap text-center">
+                                {% if tx.proof_image %}
+                                    <button type="button" @click="selectedImage = '{{ tx.proof_image.url }}'" 
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-100 text-xs font-bold text-indigo-600 bg-indigo-50/30 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                        Xem ảnh
+                                    </button>
+                                {% else %}
+                                    <span class="text-xs text-slate-300 italic">Không tải lên</span>
+                                {% endif %}
+                            </td>
+                            <!-- Status -->
+                            <td class="px-8 py-5 whitespace-nowrap text-center">
+                                {% if tx.status == 'PENDING' %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-pulse"></span>
+                                        Chờ duyệt
+                                    </span>
+                                {% elif tx.status == 'APPROVED' %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                        Đã duyệt
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5"></span>
+                                        Từ từ chối
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <!-- Actions -->
+                            {% if status_filter == 'PENDING' or status_filter == 'ALL' %}
+                                <td class="px-8 py-5 whitespace-nowrap text-center">
+                                    {% if tx.status == 'PENDING' %}
+                                        <div class="flex items-center justify-center gap-2">
+                                            <!-- Approve Button -->
+                                            <button type="button" @click="openConfirm('{{ tx.id }}', 'approve', '{{ tx.amount|floatformat:0 }}', '{{ tx.user.username }}')"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                                    title="Phê duyệt giao dịch">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                            </button>
+                                            
+                                            <!-- Reject Button -->
+                                            <button type="button" @click="openConfirm('{{ tx.id }}', 'reject', '{{ tx.amount|floatformat:0 }}', '{{ tx.user.username }}')"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                                                    title="Từ chối giao dịch">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-xs text-slate-400 font-light italic">Đã xử lý</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-8 py-20 text-center">
+                                <div class="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-700 font-outfit">Không tìm thấy yêu cầu nạp tiền nào</h3>
+                                <p class="text-slate-400 text-xs font-light max-w-xs mx-auto mt-1">Hiện không có yêu cầu nạp tiền nào phù hợp với bộ lọc đã chọn.</p>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Image Lightbox Modal -->
+    <div x-show="selectedImage" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm"
+         style="display: none;"
+         @keydown.escape.window="selectedImage = null">
+        
+        <div class="relative max-w-4xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <span class="text-slate-800 font-extrabold text-base flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Biên lai chuyển khoản / Hóa đơn nạp tiền
+                </span>
+                <button type="button" @click="selectedImage = null" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Image Area -->
+            <div class="flex-grow p-6 bg-slate-950 flex items-center justify-center overflow-auto">
+                <img :src="selectedImage" alt="Biên lai nạp tiền" class="max-w-full max-h-[60vh] object-contain rounded-xl shadow-lg border border-white/10">
+            </div>
+
+            <!-- Footer options -->
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <a :href="selectedImage" download target="_blank"
+                   class="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-sm transition-all flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Mở tab mới / Tải xuống
+                </a>
+                <button type="button" @click="selectedImage = null"
+                        class="px-5 py-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold shadow-md shadow-indigo-600/10 transition-all">
+                    Đóng cửa sổ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog Modal -->
+    <div x-show="showConfirmModal"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         style="display: none;"
+         @keydown.escape.window="showConfirmModal = false">
+        
+        <div class="relative max-w-md w-full bg-white rounded-3xl shadow-2xl p-6 border border-slate-100 text-center">
+            <!-- Icon Dynamic -->
+            <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
+                 :class="confirmActionTitle.includes('Phê duyệt') ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'">
+                <svg x-show="confirmActionTitle.includes('Phê duyệt')" class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <svg x-show="!confirmActionTitle.includes('Phê duyệt')" class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-lg font-extrabold text-slate-800 font-outfit" x-text="confirmActionTitle"></h3>
+            
+            <!-- Message -->
+            <p class="text-sm text-slate-500 font-light mt-3 leading-relaxed" x-html="confirmActionMessage"></p>
+            
+            <!-- Form Action -->
+            <form :action="confirmActionUrl" method="POST" class="mt-6 flex gap-3">
+                {% csrf_token %}
+                <button type="button" @click="showConfirmModal = false"
+                        class="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold shadow-sm transition-all">
+                    Hủy bỏ
+                </button>
+                <button type="submit"
+                        class="flex-1 px-4 py-3 rounded-xl text-white text-xs font-bold shadow-md transition-all"
+                        :class="confirmActionTitle.includes('Phê duyệt') ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/10' : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/10'">
+                    Xác nhận
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

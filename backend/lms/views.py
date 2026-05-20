@@ -172,6 +172,16 @@ class ProfileEditForm(forms.ModelForm):
             'dmoj_username': forms.TextInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
         }
 
+from django.contrib.auth.forms import PasswordChangeForm
+
+class StyledPasswordChangeForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({
+                'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'
+            })
+
 def teacher_required(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
@@ -469,7 +479,15 @@ def sync_lesson_progress_ajax(request, lesson_id):
 @login_required
 def wallet_deposit(request):
     if request.method == 'POST':
-        amount = request.POST.get('amount')
+        amount_str = request.POST.get('amount', '0')
+        try:
+            amount = float(amount_str)
+            if amount <= 0:
+                raise ValueError()
+        except ValueError:
+            messages.error(request, "Số tiền nạp không hợp lệ.")
+            return redirect('wallet_deposit')
+            
         proof = request.FILES.get('proof_image')
         WalletTransaction.objects.create(
             user=request.user,
@@ -479,8 +497,12 @@ def wallet_deposit(request):
             proof_image=proof
         )
         messages.success(request, "Yêu cầu nạp tiền đã được gửi. Vui lòng chờ Admin phê duyệt.")
-        return redirect('course_list')
-    return render(request, 'lms/wallet_deposit.html')
+        return redirect('wallet_deposit')
+        
+    transactions = WalletTransaction.objects.filter(user=request.user).order_by('-created_at')
+    return render(request, 'lms/wallet_deposit.html', {
+        'transactions': transactions
+    })
 
 @login_required
 def edit_profile(request):
@@ -1468,10 +1490,88 @@ def sync_user_django_permissions(user):
         ])
         
     # Đồng bộ hóa trong Django Auth
+    # Đồng bộ hóa trong Django Auth
     perms = Permission.objects.filter(codename__in=codenames, content_type__app_label='lms')
     lms_perms = Permission.objects.filter(content_type__app_label='lms')
     user.user_permissions.remove(*lms_perms)
     user.user_permissions.add(*perms)
+
+
+@login_required
+def admin_transactions(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Bạn không có quyền truy cập trang quản trị tối cao.")
+        return redirect('course_list')
+        
+    status_filter = request.GET.get('status', 'PENDING').upper()
+    valid_statuses = ['ALL', 'PENDING', 'APPROVED', 'REJECTED']
+    if status_filter not in valid_statuses:
+        status_filter = 'PENDING'
+        
+    transactions = WalletTransaction.objects.filter(transaction_type='DEPOSIT').order_by('-created_at')
+    
+    if status_filter != 'ALL':
+        transactions = transactions.filter(status=status_filter)
+        
+    # Thống kê giao dịch
+    pending_count = WalletTransaction.objects.filter(transaction_type='DEPOSIT', status='PENDING').count()
+    approved_count = WalletTransaction.objects.filter(transaction_type='DEPOSIT', status='APPROVED').count()
+    rejected_count = WalletTransaction.objects.filter(transaction_type='DEPOSIT', status='REJECTED').count()
+    
+    return render(request, 'lms/admin_transactions.html', {
+        'transactions': transactions,
+        'status_filter': status_filter,
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
+        'total_count': pending_count + approved_count + rejected_count,
+    })
+
+
+@login_required
+def approve_transaction_admin(request, tx_id):
+    if not request.user.is_superuser:
+        messages.error(request, "Bạn không có quyền thực hiện tác vụ này.")
+        return redirect('course_list')
+        
+    if request.method == 'POST':
+        tx = get_object_or_404(WalletTransaction, id=tx_id, transaction_type='DEPOSIT')
+        if tx.status != 'PENDING':
+            messages.error(request, "Giao dịch này đã được xử lý từ trước.")
+            return redirect('admin_transactions')
+            
+        with transaction.atomic():
+            profile = tx.user.profile
+            profile.wallet_balance += tx.amount
+            profile.save()
+            
+            tx.status = 'APPROVED'
+            tx.save()
+            
+        formatted_amount = f"{int(tx.amount):,}"
+        messages.success(request, f"Đã phê duyệt nạp {formatted_amount}đ cho tài khoản {tx.user.username} thành công.")
+        
+    return redirect('admin_transactions')
+
+
+@login_required
+def reject_transaction_admin(request, tx_id):
+    if not request.user.is_superuser:
+        messages.error(request, "Bạn không có quyền thực hiện tác vụ này.")
+        return redirect('course_list')
+        
+    if request.method == 'POST':
+        tx = get_object_or_404(WalletTransaction, id=tx_id, transaction_type='DEPOSIT')
+        if tx.status != 'PENDING':
+            messages.error(request, "Giao dịch này đã được xử lý từ trước.")
+            return redirect('admin_transactions')
+            
+        tx.status = 'REJECTED'
+        tx.save()
+        
+        messages.success(request, f"Đã từ chối giao dịch nạp tiền #{tx.id} của {tx.user.username}.")
+        
+    return redirect('admin_transactions')
 
 
 @login_required
