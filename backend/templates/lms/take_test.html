@@ -15,7 +15,7 @@
      @keydown.escape.window="showSubmitModal = false"
      class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     
-    <form id="examForm" action="{% url 'submit_test' attempt.id %}" method="post">
+    <form id="examForm" action="{% url 'submit_test' attempt.id %}{% if request.GET.lesson_id %}?lesson_id={{ request.GET.lesson_id }}{% endif %}" method="post">
         {% csrf_token %}
         
         <div class="lg:grid lg:grid-cols-12 lg:gap-8">

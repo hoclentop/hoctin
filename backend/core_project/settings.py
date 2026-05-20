@@ -138,6 +138,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True # Dành cho development
 
+# Referrer Policy for YouTube embed to work properly (fixes Error 153)
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'course_list'
 LOGOUT_REDIRECT_URL = 'course_list'

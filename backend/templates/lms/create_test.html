@@ -63,6 +63,17 @@
                                placeholder="Ví dụ: Kiểm tra Giữa kỳ I - Tin học 11 - Khối A">
                     </div>
 
+                    <!-- Test Type -->
+                    <div>
+                        <label for="test_type" class="block text-sm font-semibold text-gray-700 mb-2">Loại đề thi <span class="text-rose-500">*</span></label>
+                        <select id="test_type" name="test_type" required
+                                class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3">
+                            <option value="STANDALONE" {% if test.test_type == 'STANDALONE' or not is_edit %}selected{% endif %}>Đề thi riêng lẻ (Hiện ở trang danh sách & tìm kiếm)</option>
+                            <option value="LESSON_ONLY" {% if test.test_type == 'LESSON_ONLY' %}selected{% endif %}>Đề thi gắn vào bài học (Không hiện ở trang danh sách & tìm kiếm)</option>
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Đề thi gắn vào bài học chỉ hiển thị và làm được từ bài học liên kết trong khóa học.</p>
+                    </div>
+
                     <!-- Duration & Price Grid -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Duration -->

@@ -197,6 +197,10 @@ class TestPartProxyQuerySet:
 
 
 class Test(models.Model):
+    TYPE_CHOICES = (
+        ('STANDALONE', 'Đề thi riêng lẻ'),
+        ('LESSON_ONLY', 'Đề thi gắn vào bài học'),
+    )
     title = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     start_time = models.DateTimeField(null=True, blank=True)
@@ -204,6 +208,12 @@ class Test(models.Model):
     duration = models.PositiveIntegerField(default=60, help_text="Thời gian làm bài (phút)")
     allow_practice = models.BooleanField(default=True)
     is_official = models.BooleanField(default=False, verbose_name="Kỳ thi chính thức")
+    test_type = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        default='STANDALONE',
+        verbose_name="Loại đề thi"
+    )
     regulation = models.ForeignKey(TestRegulation, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Quy chế phòng thi")
     creator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_tests', verbose_name="Người tạo")
     

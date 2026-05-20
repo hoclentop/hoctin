@@ -30,14 +30,20 @@
 
             <div class="space-y-4">
                 {% if attempt.total_score < attempt.test.total_possible_points %}
-                    <a href="{% url 'take_test' attempt.test.id %}" class="block w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 font-outfit">
+                    <a href="{% url 'take_test' attempt.test.id %}{% if lesson %}?lesson_id={{ lesson.id }}{% endif %}" class="block w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 font-outfit">
                         Làm lại đề thi
                     </a>
                 {% endif %}
-                <a href="{% url 'course_list' %}" class="block w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 font-outfit">
-                    Quay lại trang chủ
-                </a>
-                <a href="{% url 'review_attempt' attempt.id %}" class="block w-full bg-white text-indigo-600 py-4 rounded-xl font-bold border border-indigo-200 hover:bg-indigo-50 transition-colors font-outfit">
+                {% if lesson %}
+                    <a href="{% url 'lesson_detail' lesson.course.id lesson.id %}" class="block w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 font-outfit">
+                        Quay lại bài học
+                    </a>
+                {% else %}
+                    <a href="{% url 'course_list' %}" class="block w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 font-outfit">
+                        Quay lại trang chủ
+                    </a>
+                {% endif %}
+                <a href="{% url 'review_attempt' attempt.id %}{% if lesson %}?lesson_id={{ lesson.id }}{% endif %}" class="block w-full bg-white text-indigo-600 py-4 rounded-xl font-bold border border-indigo-200 hover:bg-indigo-50 transition-colors font-outfit">
                     Xem chi tiết bài làm
                 </a>
             </div>

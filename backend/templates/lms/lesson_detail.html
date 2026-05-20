@@ -86,7 +86,7 @@
                     
                     {% if lesson.video_url %}
                         <div class="aspect-w-16 aspect-h-9 bg-black rounded-xl overflow-hidden mb-8 shadow-inner" id="video-container">
-                            <iframe id="video-player" class="w-full h-[450px]" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                            <iframe id="video-player" class="w-full h-[450px]" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
                         </div>
                     {% endif %}
                     
@@ -142,12 +142,13 @@
                             <p class="text-sm text-gray-500 mb-6">Bạn cần tham gia làm bài thi để tiếp tục hoàn thành lộ trình bài học.</p>
                             
                             {% if attempt_info.active_attempt %}
-                                <a href="{% url 'take_test' lesson.test.id %}" class="inline-block px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-lg shadow-purple-100 transition-colors">
+                                <a href="{% url 'take_test' lesson.test.id %}?lesson_id={{ lesson.id }}" class="inline-block px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-lg shadow-purple-100 transition-colors">
                                     Tiếp tục làm bài thi
                                 </a>
                             {% else %}
-                                <form method="POST" action="{% url 'take_test' lesson.test.id %}">
+                                <form method="POST" action="{% url 'take_test' lesson.test.id %}?lesson_id={{ lesson.id }}">
                                     {% csrf_token %}
+                                    <input type="hidden" name="lesson_id" value="{{ lesson.id }}">
                                     <button type="submit" class="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-colors">
                                         Bắt đầu làm bài thi
                                     </button>
@@ -178,7 +179,7 @@
                                                         {{ attempt.total_score }} / {{ attempt.test.total_points }}
                                                     </td>
                                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                                        <a href="{% url 'review_attempt' attempt.id %}" class="font-bold text-indigo-500 hover:underline">
+                                                        <a href="{% url 'review_attempt' attempt.id %}?lesson_id={{ lesson.id }}" class="font-bold text-indigo-500 hover:underline">
                                                             Xem chi tiết
                                                         </a>
                                                     </td>

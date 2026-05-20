@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
@@ -80,7 +81,10 @@ def course_detail(request, course_id):
     })
 
 def test_list(request):
-    tests = Test.objects.all()
+    if request.user.is_authenticated and (request.user.is_superuser or request.user.is_staff or (hasattr(request.user, 'profile') and request.user.profile.can_create_exams)):
+        tests = Test.objects.all().order_by('-id')
+    else:
+        tests = Test.objects.filter(test_type='STANDALONE').order_by('-id')
     return render(request, 'lms/test_list.html', {'tests': tests})
 
 def test_detail(request, test_id):
@@ -862,6 +866,9 @@ def take_test(request, test_id):
 def submit_test(request, attempt_id):
     attempt = get_object_or_404(Attempt, id=attempt_id, user=request.user)
     if attempt.end_time:
+        lesson_id = request.GET.get('lesson_id')
+        if lesson_id:
+            return redirect(f"{reverse('test_result', args=[attempt.id])}?lesson_id={lesson_id}")
         return redirect('test_result', attempt_id=attempt.id)
     
     if request.method == 'POST':
@@ -931,8 +938,14 @@ def submit_test(request, attempt_id):
             )
             
         messages.success(request, "Nộp bài thành công!")
+        lesson_id = request.GET.get('lesson_id')
+        if lesson_id:
+            return redirect(f"{reverse('test_result', args=[attempt.id])}?lesson_id={lesson_id}")
         return redirect('test_result', attempt_id=attempt.id)
     
+    lesson_id = request.GET.get('lesson_id')
+    if lesson_id:
+        return redirect(f"{reverse('take_test', args=[attempt.test.id])}?lesson_id={lesson_id}")
     return redirect('take_test', test_id=attempt.test.id)
 
 @login_required
@@ -940,7 +953,22 @@ def test_result(request, attempt_id):
     attempt = get_object_or_404(Attempt, id=attempt_id)
     if attempt.user != request.user and not request.user.is_staff:
         raise Http404("Bạn không có quyền xem kết quả này.")
-    return render(request, 'lms/test_result.html', {'attempt': attempt})
+        
+    context = {'attempt': attempt}
+    lesson_id = request.GET.get('lesson_id')
+    lesson = None
+    if lesson_id:
+        lesson = Lesson.objects.filter(id=lesson_id).select_related('course').first()
+    
+    if not lesson:
+        associated_lessons = Lesson.objects.filter(lesson_type='TEST', test=attempt.test).select_related('course')
+        if associated_lessons.exists():
+            lesson = associated_lessons.first()
+            
+    if lesson:
+        context['lesson'] = lesson
+        
+    return render(request, 'lms/test_result.html', context)
 
 @login_required
 def review_attempt(request, attempt_id):
@@ -2127,6 +2155,7 @@ def create_test(request):
         allow_practice = request.POST.get('allow_practice') == 'on'
         is_official = request.POST.get('is_official') == 'on'
         regulation_id = request.POST.get('regulation_id')
+        test_type = request.POST.get('test_type', 'STANDALONE').strip()
         
         start_time_str = request.POST.get('start_time', '').strip()
         end_time_str = request.POST.get('end_time', '').strip()
@@ -2160,6 +2189,7 @@ def create_test(request):
                 duration=int(duration),
                 allow_practice=allow_practice,
                 is_official=is_official,
+                test_type=test_type,
                 regulation=regulation,
                 start_time=start_time,
                 end_time=end_time,
@@ -2191,6 +2221,7 @@ def edit_test_basic(request, test_id):
         allow_practice = request.POST.get('allow_practice') == 'on'
         is_official = request.POST.get('is_official') == 'on'
         regulation_id = request.POST.get('regulation_id')
+        test_type = request.POST.get('test_type', 'STANDALONE').strip()
         
         start_time_str = request.POST.get('start_time', '').strip()
         end_time_str = request.POST.get('end_time', '').strip()
@@ -2223,6 +2254,7 @@ def edit_test_basic(request, test_id):
             test.duration = int(duration)
             test.allow_practice = allow_practice
             test.is_official = is_official
+            test.test_type = test_type
             test.regulation = regulation
             test.start_time = start_time
             test.end_time = end_time

@@ -11,12 +11,12 @@
         </div>
         <div class="flex items-center gap-3">
             {% if attempt.total_score < attempt.test.total_possible_points %}
-                <a href="{% url 'take_test' attempt.test.id %}" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-sm shadow-indigo-100 flex items-center gap-1.5 font-outfit">
+                <a href="{% url 'take_test' attempt.test.id %}{% if request.GET.lesson_id %}?lesson_id={{ request.GET.lesson_id }}{% endif %}" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-sm shadow-indigo-100 flex items-center gap-1.5 font-outfit">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"></path></svg>
                     Làm lại
                 </a>
             {% endif %}
-            <a href="{% url 'test_result' attempt.id %}" class="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors font-outfit">
+            <a href="{% url 'test_result' attempt.id %}{% if request.GET.lesson_id %}?lesson_id={{ request.GET.lesson_id }}{% endif %}" class="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors font-outfit">
                 Quay lại kết quả
             </a>
         </div>
