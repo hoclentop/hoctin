@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Cài đặt tài khoản | HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Header Card -->
+    <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-3xl p-6 md:p-8 shadow-xl text-white mb-8 relative overflow-hidden">
+        <!-- Background accents -->
+        <div class="absolute right-0 top-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-16 -mt-16 pointer-events-none"></div>
+        <div class="absolute left-1/3 bottom-0 w-32 h-32 bg-purple-500 opacity-20 rounded-full -mb-8 pointer-events-none filter blur-xl"></div>
+        
+        <div class="relative flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
+            <div class="flex flex-col md:flex-row items-center gap-6">
+                <!-- Avatar / Initials -->
+                <div class="w-20 h-20 rounded-2xl bg-white bg-opacity-20 backdrop-blur-md flex items-center justify-center border border-white border-opacity-30 shadow-inner">
+                    <span class="text-3xl font-bold font-outfit uppercase">
+                        {{ user.username|slice:":2" }}
+                    </span>
+                </div>
+                <!-- User details -->
+                <div class="text-center md:text-left">
+                    <h1 class="text-2xl md:text-3xl font-extrabold font-outfit tracking-tight">
+                        {% if user.first_name or user.last_name %}
+                            {{ user.first_name }} {{ user.last_name }}
+                        {% else %}
+                            {{ user.username }}
+                        {% endif %}
+                    </h1>
+                    <p class="text-indigo-100 mt-1 font-medium text-sm">@{{ user.username }}</p>
+                    <div class="flex flex-wrap justify-center md:justify-start gap-2 mt-3">
+                        {% if user.is_superuser %}
+                            <span class="px-3 py-1 rounded-full bg-red-500 bg-opacity-25 text-red-200 text-xs font-semibold border border-red-500 border-opacity-35">Super Admin</span>
+                        {% elif user.is_staff %}
+                            <span class="px-3 py-1 rounded-full bg-indigo-500 bg-opacity-25 text-indigo-200 text-xs font-semibold border border-indigo-500 border-opacity-35">Giáo viên</span>
+                        {% else %}
+                            <span class="px-3 py-1 rounded-full bg-green-500 bg-opacity-25 text-green-200 text-xs font-semibold border border-green-500 border-opacity-35">Học sinh</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <!-- Wallet widget -->
+            <div class="bg-white bg-opacity-10 backdrop-blur-md border border-white border-opacity-25 rounded-2xl px-5 py-4 text-center md:text-right shadow-md">
+                <span class="text-xs text-indigo-100 uppercase tracking-wider font-semibold">Số dư ví</span>
+                <p class="text-2xl font-bold mt-1 text-green-300 font-outfit">{{ profile.wallet_balance }}đ</p>
+                <a href="{% url 'wallet_deposit' %}" class="inline-flex items-center text-xs text-white hover:text-indigo-200 mt-2 font-medium transition-colors">
+                    Nạp tiền
+                    <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <form method="POST" class="space-y-8">
+        {% csrf_token %}
+        
+        {% if user_form.errors or profile_form.errors %}
+            <div class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
+                <p class="font-semibold text-sm">Vui lòng sửa các lỗi bên dưới:</p>
+                <ul class="list-disc pl-5 mt-2 text-xs space-y-1">
+                    {% for field in user_form %}
+                        {% for error in field.errors %}
+                            <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for field in profile_form %}
+                        {% for error in field.errors %}
+                            <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Left Card: Personal Info -->
+            <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 md:p-8 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div class="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900 font-outfit">Thông tin cá nhân</h2>
+                        <p class="text-xs text-gray-500">Thông tin cơ bản về tài khoản của bạn</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5" for="{{ user_form.first_name.id_for_label }}">Họ</label>
+                        {{ user_form.first_name }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5" for="{{ user_form.last_name.id_for_label }}">Tên</label>
+                        {{ user_form.last_name }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5" for="{{ user_form.email.id_for_label }}">Email</label>
+                        {{ user_form.email }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Card: Platform Integrations (Judge Sync) -->
+            <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 md:p-8 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div class="p-2.5 rounded-xl bg-purple-50 text-purple-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900 font-outfit">Đồng bộ Judge</h2>
+                        <p class="text-xs text-gray-500">Liên kết tài khoản chấm bài ngoại vi</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between" for="{{ profile_form.vnoj_username.id_for_label }}">
+                            <span>Username VNOJ</span>
+                            <span class="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">VNOJ</span>
+                        </label>
+                        {{ profile_form.vnoj_username }}
+                        <p class="text-xs text-gray-400 mt-1">Dùng để đồng bộ trạng thái làm bài tập trên VNOJ</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between" for="{{ profile_form.codeforces_username.id_for_label }}">
+                            <span>Username Codeforces</span>
+                            <span class="text-xs px-2 py-0.5 rounded bg-red-50 text-red-600 font-medium">Codeforces</span>
+                        </label>
+                        {{ profile_form.codeforces_username }}
+                        <p class="text-xs text-gray-400 mt-1">Dùng để đồng bộ trạng thái làm bài tập trên Codeforces</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between" for="{{ profile_form.dmoj_username.id_for_label }}">
+                            <span>Username on.hsgtin.vn</span>
+                            <span class="text-xs px-2 py-0.5 rounded bg-green-50 text-green-600 font-medium">on.hsgtin.vn</span>
+                        </label>
+                        {{ profile_form.dmoj_username }}
+                        <p class="text-xs text-gray-400 mt-1">Dùng để đồng bộ trạng thái làm bài tập trên on.hsgtin.vn</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+            <a href="/" class="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                Quay lại trang chủ
+            </a>
+            <button type="submit" class="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 hover:shadow-xl hover:shadow-indigo-200 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Lưu thay đổi
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

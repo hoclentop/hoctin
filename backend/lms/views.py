@@ -149,6 +149,29 @@ class LessonForm(forms.ModelForm):
             'test': forms.Select(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'}),
         }
 
+class UserEditForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'email']
+        widgets = {
+            'first_name': forms.TextInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
+            'last_name': forms.TextInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
+            'email': forms.EmailInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
+        }
+
+class ProfileEditForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = ['vnoj_username', 'codeforces_username', 'dmoj_username']
+        labels = {
+            'dmoj_username': 'Username on.hsgtin.vn',
+        }
+        widgets = {
+            'vnoj_username': forms.TextInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
+            'codeforces_username': forms.TextInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
+            'dmoj_username': forms.TextInput(attrs={'class': 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium'}),
+        }
+
 def teacher_required(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
@@ -393,24 +416,36 @@ def sync_lesson_progress_ajax(request, lesson_id):
         return JsonResponse({'success': False, 'message': 'Bài học này không liên kết bài tập ngoại vi.'}, status=400)
         
     profile = request.user.profile
-    if not profile.codeforces_username and not profile.vnoj_username:
-        return JsonResponse({'success': False, 'message': 'Vui lòng cập nhật username VNOJ hoặc Codeforces trong trang cá nhân của bạn.'}, status=400)
+    if not profile.codeforces_username and not profile.vnoj_username and not profile.dmoj_username:
+        return JsonResponse({'success': False, 'message': 'Vui lòng cập nhật username VNOJ, Codeforces hoặc on.hsgtin.vn trong trang cá nhân của bạn.'}, status=400)
         
     success = False
     message = "Không tìm thấy bài nộp AC (chấp nhận) nào cho bài tập này."
     
     # Try syncing
     import requests
-    if 'codeforces' in lesson.external_judge_link.lower() and profile.codeforces_username:
+    link_lower = lesson.external_judge_link.lower() if lesson.external_judge_link else ""
+    if 'codeforces' in link_lower and profile.codeforces_username:
         success = JudgeSyncService.sync_codeforces(profile.codeforces_username, lesson.external_problem_code)
-    elif 'vnoj' in lesson.external_judge_link.lower() and profile.vnoj_username:
+    elif 'vnoj' in link_lower and profile.vnoj_username:
         success = JudgeSyncService.sync_vnoj(profile.vnoj_username, lesson.external_problem_code)
+    elif ('hsgtin' in link_lower or 'on.hsgtin.vn' in link_lower) and profile.dmoj_username:
+        success = JudgeSyncService.sync_hsgtin(profile.dmoj_username, lesson.external_problem_code)
     else:
-        # Try both
-        if profile.vnoj_username:
+        # Fallback: try matching platform or check everything configured
+        if ('hsgtin' in link_lower or 'on.hsgtin.vn' in link_lower) and profile.dmoj_username:
+            success = JudgeSyncService.sync_hsgtin(profile.dmoj_username, lesson.external_problem_code)
+        elif 'vnoj' in link_lower and profile.vnoj_username:
             success = JudgeSyncService.sync_vnoj(profile.vnoj_username, lesson.external_problem_code)
-        if not success and profile.codeforces_username:
+        elif 'codeforces' in link_lower and profile.codeforces_username:
             success = JudgeSyncService.sync_codeforces(profile.codeforces_username, lesson.external_problem_code)
+        else:
+            if profile.dmoj_username:
+                success = JudgeSyncService.sync_hsgtin(profile.dmoj_username, lesson.external_problem_code)
+            if not success and profile.vnoj_username:
+                success = JudgeSyncService.sync_vnoj(profile.vnoj_username, lesson.external_problem_code)
+            if not success and profile.codeforces_username:
+                success = JudgeSyncService.sync_codeforces(profile.codeforces_username, lesson.external_problem_code)
             
     if success:
         LessonProgress.objects.update_or_create(
@@ -446,6 +481,31 @@ def wallet_deposit(request):
         messages.success(request, "Yêu cầu nạp tiền đã được gửi. Vui lòng chờ Admin phê duyệt.")
         return redirect('course_list')
     return render(request, 'lms/wallet_deposit.html')
+
+@login_required
+def edit_profile(request):
+    user = request.user
+    profile, created = Profile.objects.get_or_create(user=user)
+    
+    if request.method == 'POST':
+        user_form = UserEditForm(request.POST, instance=user)
+        profile_form = ProfileEditForm(request.POST, instance=profile)
+        if user_form.is_valid() and profile_form.is_valid():
+            user_form.save()
+            profile_form.save()
+            messages.success(request, "Cập nhật thông tin cá nhân thành công!")
+            return redirect('edit_profile')
+        else:
+            messages.error(request, "Có lỗi xảy ra, vui lòng kiểm tra lại thông tin.")
+    else:
+        user_form = UserEditForm(instance=user)
+        profile_form = ProfileEditForm(instance=profile)
+        
+    return render(request, 'lms/edit_profile.html', {
+        'user_form': user_form,
+        'profile_form': profile_form,
+        'profile': profile
+    })
 
 @login_required
 def register_test(request, test_id):

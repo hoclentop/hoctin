@@ -14,6 +14,7 @@ urlpatterns = [
     path('result/<int:attempt_id>/review/', views.review_attempt, name='review_attempt'),
     path('test/<int:test_id>/leaderboard/', views.leaderboard, name='leaderboard'),
     path('wallet/deposit/', views.wallet_deposit, name='wallet_deposit'),
+    path('profile/edit/', views.edit_profile, name='edit_profile'),
     path('register/', views.register, name='register'),
     path('upload-image/', views.upload_image, name='upload_image'),
     path('editor-demo/', TemplateView.as_view(template_name='lms/editor_demo.html'), name='editor_demo'),

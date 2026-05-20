@@ -139,17 +139,60 @@ class ScoringService:
 
 class JudgeSyncService:
     @staticmethod
-    def sync_vnoj(username, problem_code):
-        """Mock sync logic for VNOJ."""
-        # Thực tế sẽ dùng BeautifulSoup để cào: https://oj.vnoi.info/submissions/user/{username}/
-        url = f"https://oj.vnoi.info/submissions/user/{username}/"
+    def _sync_dmoj_platform(base_url, username, problem_code):
+        """Helper to sync from DMOJ-based platforms like VNOJ or on.hsgtin.vn."""
+        url = f"{base_url.rstrip('/')}/submissions/user/{username}/?status=AC"
         try:
-            # response = requests.get(url, timeout=10)
-            # soup = BeautifulSoup(response.text, 'html.parser')
-            # Tìm trong table xem có dòng nào có problem_code và status 'Accepted' không
-            return False # Tạm thời trả về False để test luồng
-        except:
+            resp = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            if resp.status_code != 200:
+                return False
+            
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            rows = soup.find_all('div', class_='submission-row')
+            for row in rows:
+                # Get username to be absolutely sure
+                user_span = row.find('span', class_='user')
+                if user_span:
+                    row_user = user_span.get_text(strip=True)
+                    if row_user.lower() != username.lower():
+                        continue
+                
+                # Get problem code from name link
+                name_div = row.find('div', class_='name')
+                if not name_div:
+                    continue
+                a_link = name_div.find('a')
+                if not a_link:
+                    continue
+                href = a_link.get('href', '')
+                if '/problem/' not in href:
+                    continue
+                
+                # Extract problem code (e.g. "/problem/hsg7d25b4" -> "hsg7d25b4")
+                prob_code = href.split('/problem/')[-1].strip('/')
+                if prob_code.lower() == problem_code.lower():
+                    # Double check status is AC
+                    status_span = row.find('span', class_='status')
+                    result_div = row.find('div', class_='sub-result')
+                    
+                    status_text = status_span.get_text(strip=True) if status_span else ""
+                    result_classes = result_div.get('class', []) if result_div else []
+                    
+                    if status_text == 'AC' or 'AC' in result_classes:
+                        return True
             return False
+        except Exception:
+            return False
+
+    @staticmethod
+    def sync_vnoj(username, problem_code):
+        """Sync via VNOJ scraping."""
+        return JudgeSyncService._sync_dmoj_platform("https://oj.vnoi.info", username, problem_code)
+
+    @staticmethod
+    def sync_hsgtin(username, problem_code):
+        """Sync via on.hsgtin.vn scraping (using HTTP)."""
+        return JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", username, problem_code)
 
     @staticmethod
     def sync_codeforces(username, problem_code):

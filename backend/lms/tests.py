@@ -333,3 +333,126 @@ class CourseAndLessonTestCase(TestCase):
         # Check if the linked lesson is automatically marked as completed
         is_completed = LessonProgress.objects.filter(user=self.student, lesson=test_lesson, is_completed=True).exists()
         self.assertTrue(is_completed)
+
+class ProfileTestCase(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='tester', password='password123')
+        
+    def test_profile_edit_requires_login(self):
+        from django.urls import reverse
+        # Non-logged in users should be redirected to login page
+        response = self.client.get(reverse('edit_profile'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/', response.url)
+        
+    def test_profile_edit_get_and_post(self):
+        from django.urls import reverse
+        self.client.login(username='tester', password='password123')
+        
+        # Test GET
+        response = self.client.get(reverse('edit_profile'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/edit_profile.html')
+        
+        # Test POST update details
+        post_data = {
+            'first_name': 'Nguyen',
+            'last_name': 'Van A',
+            'email': 'vana@example.com',
+            'vnoj_username': 'vnoj_user',
+            'codeforces_username': 'cf_user',
+            'dmoj_username': 'dmoj_user',
+        }
+        response = self.client.post(reverse('edit_profile'), post_data)
+        self.assertEqual(response.status_code, 302) # redirects to edit_profile on success
+        
+        # Verify persistence in DB
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, 'Nguyen')
+        self.assertEqual(self.user.last_name, 'Van A')
+        self.assertEqual(self.user.email, 'vana@example.com')
+        
+        profile = self.user.profile
+        self.assertEqual(profile.vnoj_username, 'vnoj_user')
+        self.assertEqual(profile.codeforces_username, 'cf_user')
+        self.assertEqual(profile.dmoj_username, 'dmoj_user')
+
+from unittest.mock import patch
+
+class JudgeSyncTestCase(TestCase):
+    def test_sync_dmoj_platform_success(self):
+        from lms.services import JudgeSyncService
+        
+        sample_html = """
+        <div id="submissions-table">
+            <div class="submission-row" id="131729">
+                <div class="sub-result AC">
+                    <span class="status" title="Kết quả đúng (AC)">AC</span>
+                </div>
+                <div class="sub-main">
+                    <div class="sub-info">
+                        <div class="name">
+                            <a href="/problem/hsg7d25b4">D254 Số nguyên tố cùng nhau</a>
+                        </div>
+                        <span class="rating rate-none user"><a href="/user/dangkhoa">dangkhoa</a></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+        
+        class MockResponse:
+            def __init__(self, text, status_code):
+                self.text = text
+                self.status_code = status_code
+                
+        with patch('requests.get') as mock_get:
+            mock_get.return_value = MockResponse(sample_html, 200)
+            
+            # Test success case
+            success = JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", "dangkhoa", "hsg7d25b4")
+            self.assertTrue(success)
+            mock_get.assert_called_with("http://on.hsgtin.vn/submissions/user/dangkhoa/?status=AC", timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            
+            # Test case-insensitive match on username and problem code
+            success_case = JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", "DangKhoa", "HSG7D25B4")
+            self.assertTrue(success_case)
+            
+            # Test incorrect problem code
+            fail_prob = JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", "dangkhoa", "hsg7d9999")
+            self.assertFalse(fail_prob)
+            
+            # Test incorrect user
+            fail_user = JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", "other_user", "hsg7d25b4")
+            self.assertFalse(fail_user)
+            
+    def test_sync_dmoj_platform_non_ac(self):
+        from lms.services import JudgeSyncService
+        
+        sample_html_non_ac = """
+        <div id="submissions-table">
+            <div class="submission-row" id="131729">
+                <div class="sub-result WA">
+                    <span class="status" title="Kết quả sai (WA)">WA</span>
+                </div>
+                <div class="sub-main">
+                    <div class="sub-info">
+                        <div class="name">
+                            <a href="/problem/hsg7d25b4">D254</a>
+                        </div>
+                        <span class="rating rate-none user"><a href="/user/dangkhoa">dangkhoa</a></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+        class MockResponse:
+            def __init__(self, text, status_code):
+                self.text = text
+                self.status_code = status_code
+                
+        with patch('requests.get') as mock_get:
+            mock_get.return_value = MockResponse(sample_html_non_ac, 200)
+            
+            success = JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", "dangkhoa", "hsg7d25b4")
+            self.assertFalse(success)
