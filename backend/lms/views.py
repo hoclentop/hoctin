@@ -37,8 +37,8 @@ def register(request):
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            # Tự động tạo Profile cho user mới
-            Profile.objects.create(user=user)
+            # Tự động đảm bảo Profile được tạo cho user mới (được xử lý bởi signal)
+            Profile.objects.get_or_create(user=user)
             auth_login(request, user)
             messages.success(request, f"Chào mừng {user.username}! Bạn đã đăng ký thành công.")
             return redirect('course_list')
@@ -3375,6 +3375,103 @@ def buy_test_bundle(request, bundle_id):
         
     messages.success(request, f"Chúc mừng! Bạn đã mua thành công gói đề '{bundle.title}'.")
     return redirect('test_bundle_detail', bundle_id=bundle.id)
+
+
+def course_bundle_list(request):
+    """Hiển thị danh sách các gói khóa học."""
+    bundles = CourseBundle.objects.all()
+    for b in bundles:
+        all_courses = b.courses.all()
+        # Tính tổng giá gốc của các khóa học lẻ trong gói để hiển thị tiết kiệm
+        b.original_total = sum(c.price for c in all_courses)
+        b.saving_amount = max(0, b.original_total - b.price)
+        
+        if not all_courses.exists():
+            b.is_owned = False
+            continue
+        if request.user.is_authenticated:
+            owned_count = CourseOwnership.objects.filter(user=request.user, course__in=all_courses).count()
+            b.is_owned = (owned_count == all_courses.count())
+        else:
+            b.is_owned = False
+    return render(request, 'lms/course_bundle_list.html', {'bundles': bundles})
+
+
+def course_bundle_detail(request, bundle_id):
+    """Chi tiết gói khóa học, danh sách các khóa học bên trong."""
+    bundle = get_object_or_404(CourseBundle, id=bundle_id)
+    courses = bundle.courses.all()
+    
+    courses_with_status = []
+    owned_count = 0
+    original_total = 0
+    for c in courses:
+        original_total += c.price
+        is_owned = False
+        if request.user.is_authenticated:
+            is_owned = CourseOwnership.objects.filter(user=request.user, course=c).exists()
+            if is_owned:
+                owned_count += 1
+        courses_with_status.append({
+            'course': c,
+            'is_owned': is_owned
+        })
+        
+    is_fully_owned = (courses.exists() and owned_count == courses.count())
+    saving_amount = max(0, original_total - bundle.price)
+    
+    return render(request, 'lms/course_bundle_detail.html', {
+        'bundle': bundle,
+        'courses_with_status': courses_with_status,
+        'is_fully_owned': is_fully_owned,
+        'original_total': original_total,
+        'saving_amount': saving_amount
+    })
+
+
+@login_required
+def buy_course_bundle(request, bundle_id):
+    """Mua trọn bộ các khóa học trong gói khóa học."""
+    bundle = get_object_or_404(CourseBundle, id=bundle_id)
+    profile = request.user.profile
+    
+    courses = bundle.courses.all()
+    if not courses.exists():
+        messages.warning(request, "Gói khóa học này hiện chưa có khóa học nào.")
+        return redirect('course_bundle_detail', bundle_id=bundle.id)
+        
+    # Kiểm tra xem người dùng đã sở hữu toàn bộ các khóa học trong gói chưa
+    owned_count = CourseOwnership.objects.filter(user=request.user, course__in=courses).count()
+    if owned_count == courses.count():
+        messages.info(request, "Bạn đã sở hữu toàn bộ khóa học trong gói này rồi.")
+        return redirect('course_bundle_detail', bundle_id=bundle.id)
+        
+    if profile.wallet_balance < bundle.price:
+        messages.error(request, "Số dư tài khoản ví không đủ để thanh toán gói khóa học này. Vui lòng nạp thêm tiền.")
+        return redirect('wallet_deposit')
+        
+    with transaction.atomic():
+        # Khấu trừ tiền ví
+        profile.wallet_balance -= bundle.price
+        profile.save()
+        
+        # Cấp quyền sở hữu CourseOwnership cho tất cả khóa học có trong gói
+        for course in courses:
+            CourseOwnership.objects.get_or_create(
+                user=request.user,
+                course=course
+            )
+            
+        # Lưu vết giao dịch
+        WalletTransaction.objects.create(
+            user=request.user,
+            amount=bundle.price,
+            transaction_type='PAYMENT',
+            status='APPROVED'
+        )
+        
+    messages.success(request, f"Chúc mừng! Bạn đã mua thành công gói khóa học '{bundle.title}'.")
+    return redirect('course_bundle_detail', bundle_id=bundle.id)
 
 
 

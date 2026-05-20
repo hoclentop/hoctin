@@ -456,3 +456,98 @@ class JudgeSyncTestCase(TestCase):
             
             success = JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", "dangkhoa", "hsg7d25b4")
             self.assertFalse(success)
+
+    def test_sync_dmoj_platform_via_api(self):
+        from lms.services import JudgeSyncService
+        from django.test import override_settings
+        
+        with override_settings(VNOJ_API_TOKEN="my_test_token"):
+            class MockApiResponse:
+                def __init__(self, json_data, status_code):
+                    self.json_data = json_data
+                    self.status_code = status_code
+                def json(self):
+                    return self.json_data
+            
+            with patch('requests.get') as mock_get:
+                mock_get.return_value = MockApiResponse({'success': True, 'has_ac': True}, 200)
+                
+                success = JudgeSyncService._sync_dmoj_platform("http://on.hsgtin.vn", "dangkhoa", "hsg7d25b4")
+                self.assertTrue(success)
+                mock_get.assert_called_with(
+                    "http://on.hsgtin.vn/api/lms-check-submission/",
+                    params={'user': 'dangkhoa', 'problem': 'hsg7d25b4'},
+                    headers={'Authorization': 'Bearer my_test_token', 'User-Agent': 'Mozilla/5.0'},
+                    timeout=10
+                )
+
+from django.urls import reverse
+from lms.models import Course, CourseBundle, CourseOwnership, WalletTransaction
+
+class CourseBundleTestCase(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='bundle_buyer', password='password123')
+        self.profile = self.user.profile
+        self.profile.wallet_balance = 50000.00
+        self.profile.save()
+        
+        self.course1 = Course.objects.create(title="Course 1", description="Desc 1", price=30000.00)
+        self.course2 = Course.objects.create(title="Course 2", description="Desc 2", price=30000.00)
+        
+        self.bundle = CourseBundle.objects.create(
+            title="Super Saver Bundle",
+            description="Buy both for less!",
+            price=45000.00
+        )
+        self.bundle.courses.add(self.course1, self.course2)
+        
+    def test_course_bundle_list_and_detail(self):
+        self.client.login(username='bundle_buyer', password='password123')
+        
+        # Test List View
+        response = self.client.get(reverse('course_bundle_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/course_bundle_list.html')
+        self.assertContains(response, "Super Saver Bundle")
+        
+        # Test Detail View
+        response = self.client.get(reverse('course_bundle_detail', args=[self.bundle.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/course_bundle_detail.html')
+        self.assertContains(response, "Course 1")
+        self.assertContains(response, "Course 2")
+        
+    def test_buy_course_bundle_success(self):
+        self.client.login(username='bundle_buyer', password='password123')
+        
+        # Purchase Bundle
+        response = self.client.post(reverse('buy_course_bundle', args=[self.bundle.id]))
+        self.assertEqual(response.status_code, 302) # Redirects to bundle detail on success
+        
+        # Verify Wallet Deduction
+        self.profile.refresh_from_db()
+        self.assertEqual(float(self.profile.wallet_balance), 5000.00)
+        
+        # Verify Ownership Granted
+        self.assertTrue(CourseOwnership.objects.filter(user=self.user, course=self.course1).exists())
+        self.assertTrue(CourseOwnership.objects.filter(user=self.user, course=self.course2).exists())
+        
+        # Verify Transaction Logged
+        self.assertTrue(WalletTransaction.objects.filter(user=self.user, amount=45000.00, transaction_type='PAYMENT').exists())
+
+    def test_buy_course_bundle_insufficient_funds(self):
+        # Set low wallet balance
+        self.profile.wallet_balance = 10000.00
+        self.profile.save()
+        
+        self.client.login(username='bundle_buyer', password='password123')
+        
+        response = self.client.post(reverse('buy_course_bundle', args=[self.bundle.id]))
+        self.assertEqual(response.status_code, 302) # Redirects to deposit or same page
+        
+        # Balance should be unchanged
+        self.profile.refresh_from_db()
+        self.assertEqual(float(self.profile.wallet_balance), 10000.00)
+        
+        # No ownership should be granted
+        self.assertFalse(CourseOwnership.objects.filter(user=self.user, course=self.course1).exists())

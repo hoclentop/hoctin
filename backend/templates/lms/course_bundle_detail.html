@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ bundle.title }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+    <!-- Breadcrumb -->
+    <nav class="flex mb-6 text-sm text-slate-500 font-medium" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="{% url 'course_bundle_list' %}" class="inline-flex items-center hover:text-emerald-600 transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    Gói khóa học
+                </a>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="ml-1 text-slate-400 md:ml-2 font-normal line-clamp-1">{{ bundle.title }}</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Main Card -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300">
+        <!-- Header Banner -->
+        <div class="relative bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 p-8 sm:p-12 text-white">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.15),transparent_50%)]"></div>
+            
+            <div class="flex flex-wrap gap-3 mb-6 relative z-10">
+                <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 backdrop-blur-sm">
+                    Combo Tiết Kiệm
+                </span>
+                {% if is_fully_owned %}
+                <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 backdrop-blur-sm">
+                    Đã sở hữu trọn bộ
+                </span>
+                {% endif %}
+            </div>
+
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-outfit mb-4 relative z-10">
+                {{ bundle.title }}
+            </h1>
+
+            <p class="text-emerald-200/90 max-w-2xl text-base sm:text-lg font-light relative z-10 leading-relaxed">
+                {{ bundle.description|default:"Gói khóa học chất lượng cao được tuyển chọn đặc biệt. Hãy đầu tư một lần duy nhất để sở hữu trọn đời và học tập hiệu quả." }}
+            </p>
+        </div>
+
+        <div class="p-8 sm:p-12">
+            <!-- Price and Buy Action Row -->
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-slate-50 border border-slate-100 p-6 rounded-2xl mb-10">
+                <div>
+                    <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Giá trọn bộ combo</span>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-3xl font-black text-emerald-600 font-outfit">
+                            {% if bundle.price == 0 %}Miễn phí{% else %}{{ bundle.price|floatformat:0 }} đ{% endif %}
+                        </span>
+                        {% if saving_amount > 0 %}
+                        <span class="text-sm text-slate-400 line-through font-medium">{{ original_total|floatformat:0 }} đ</span>
+                        {% endif %}
+                    </div>
+                    {% if saving_amount > 0 %}
+                    <span class="block text-[11px] font-bold text-pink-500 uppercase tracking-wider mt-1">Tiết kiệm {{ saving_amount|floatformat:0 }} đ so với mua lẻ</span>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    {% if is_fully_owned %}
+                        <div class="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-5 py-3.5 rounded-xl border border-indigo-100">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="font-bold text-sm">Bạn đã sở hữu combo này</span>
+                        </div>
+                    {% else %}
+                        {% if user.is_authenticated %}
+                            <form action="{% url 'buy_course_bundle' bundle.id %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl font-bold hover:from-emerald-700 hover:to-teal-800 transition-all duration-200 shadow-md hover:shadow-lg">
+                                    Thanh toán & Mua ngay
+                                    <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                </button>
+                            </form>
+                        {% else %}
+                            <a href="{% url 'login' %}?next={{ request.path }}" class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-md">
+                                Đăng nhập để mua combo khóa học
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Course List Title -->
+            <h3 class="text-xl font-extrabold text-slate-900 font-outfit mb-6 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                Danh sách khóa học có trong gói ({{ courses_with_status|length }} khóa học)
+            </h3>
+
+            <!-- Course List Items -->
+            <div class="space-y-4">
+                {% for item in courses_with_status %}
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/30 transition-all duration-200">
+                    <div class="flex items-start gap-4">
+                        <span class="flex-shrink-0 w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm font-outfit">
+                            {{ forloop.counter }}
+                        </span>
+                        <div>
+                            <h4 class="font-extrabold text-slate-800 text-base font-outfit">{{ item.course.title }}</h4>
+                            <p class="text-slate-500 text-xs mt-1 line-clamp-1 max-w-md">{{ item.course.description }}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                        {% if item.is_owned %}
+                            <span class="inline-flex items-center text-xs text-indigo-600 font-bold bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100/50 mr-2">
+                                Đã sở hữu
+                            </span>
+                            <a href="{% url 'course_detail' item.course.id %}" class="px-5 py-2 bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 rounded-xl transition-colors shadow-sm shadow-emerald-600/10">
+                                Vào học ngay
+                            </a>
+                        {% else %}
+                            <span class="inline-flex items-center text-xs text-slate-400 font-medium bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/20 mr-2">
+                                Chưa sở hữu
+                            </span>
+                            {% if not is_fully_owned %}
+                            <a href="{% url 'course_detail' item.course.id %}" class="px-4 py-2 border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 rounded-xl transition-colors">
+                                Mua lẻ ({{ item.course.price|floatformat:0 }}đ)
+                            </a>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center p-8 border border-dashed border-slate-200 rounded-2xl">
+                    <p class="text-slate-400 text-sm">Gói khóa học này hiện tại chưa có khóa học cụ thể.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

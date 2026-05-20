@@ -141,6 +141,30 @@ class JudgeSyncService:
     @staticmethod
     def _sync_dmoj_platform(base_url, username, problem_code):
         """Helper to sync from DMOJ-based platforms like VNOJ or on.hsgtin.vn."""
+        # 1. Thử gọi API bảo mật nếu có cấu hình VNOJ_API_TOKEN trong settings
+        from django.conf import settings
+        api_token = getattr(settings, 'VNOJ_API_TOKEN', None)
+        if api_token:
+            api_url = f"{base_url.rstrip('/')}/api/lms-check-submission/"
+            try:
+                headers = {
+                    'Authorization': f'Bearer {api_token}',
+                    'User-Agent': 'Mozilla/5.0'
+                }
+                params = {
+                    'user': username,
+                    'problem': problem_code
+                }
+                resp = requests.get(api_url, params=params, headers=headers, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('success'):
+                        return data.get('has_ac', False)
+            except Exception:
+                # Nếu API gặp sự cố (ví dụ endpoint chưa được viết bên VNOJ), tự động fallback xuống cào HTML
+                pass
+
+        # 2. Phương án cào HTML (Chỉ hoạt động đối với bài tập công khai)
         url = f"{base_url.rstrip('/')}/submissions/user/{username}/?status=AC"
         try:
             resp = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})

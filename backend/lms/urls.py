@@ -58,6 +58,11 @@ urlpatterns = [
     path('bundle/<int:bundle_id>/', views.test_bundle_detail, name='test_bundle_detail'),
     path('bundle/<int:bundle_id>/buy/', views.buy_test_bundle, name='buy_test_bundle'),
     
+    # URL Gói khóa học
+    path('course-bundles/', views.course_bundle_list, name='course_bundle_list'),
+    path('course-bundle/<int:bundle_id>/', views.course_bundle_detail, name='course_bundle_detail'),
+    path('course-bundle/<int:bundle_id>/buy/', views.buy_course_bundle, name='buy_course_bundle'),
+    
     # URL quản lý khóa học (Giáo viên)
     path('courses/create/', views.create_course, name='create_course'),
     path('courses/<int:course_id>/edit/', views.edit_course, name='edit_course'),

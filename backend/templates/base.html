@@ -38,6 +38,7 @@
                         <a href="/" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Khóa học</a>
                         <a href="/tests/" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Đề thi</a>
                         <a href="{% url 'test_bundle_list' %}" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Gói đề thi</a>
+                        <a href="{% url 'course_bundle_list' %}" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Gói khóa học</a>
                         {% if user.is_authenticated %}
                             {% if user.is_staff %}
                                 <a href="{% url 'question_list' %}" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Ngân hàng câu hỏi</a>

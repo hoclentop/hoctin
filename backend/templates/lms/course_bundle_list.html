@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Danh sách Gói khóa học - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="mb-8 md:flex md:items-center md:justify-between">
+    <div class="flex-1 min-w-0">
+        <h1 class="text-3xl font-bold text-gray-900 font-outfit">Gói khóa học ưu đãi</h1>
+        <p class="text-gray-600">Mua trọn bộ các gói khóa học chất lượng cao để tiết kiệm chi phí học tập.</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+    {% for bundle in bundles %}
+    <div class="relative bg-white rounded-3xl shadow-sm border border-gray-100 p-8 flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+        <!-- Decorative subtle top border gradient on hover -->
+        <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500 rounded-t-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        
+        <div>
+            <!-- Badge & Info -->
+            <div class="flex items-center justify-between mb-4">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    Combo Khóa học
+                </span>
+                {% if bundle.is_owned %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
+                    <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-indigo-500"></span>
+                    Đã sở hữu toàn bộ
+                </span>
+                {% endif %}
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-2xl font-extrabold text-gray-900 mb-3 tracking-tight font-outfit group-hover:text-emerald-600 transition-colors duration-200">
+                {{ bundle.title }}
+            </h3>
+
+            <!-- Description -->
+            <p class="text-gray-500 text-sm mb-6 line-clamp-3 leading-relaxed">
+                {{ bundle.description|default:"Gói tuyển tập các khóa học chất lượng cao giúp bạn xây dựng nền tảng kiến thức lập trình vững chắc từ cơ bản tới nâng cao." }}
+            </p>
+
+            <!-- Course List Info snippet -->
+            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100/50 mb-6">
+                <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Gói bao gồm</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl font-bold text-slate-800 font-outfit">{{ bundle.courses.count }}</span>
+                    <span class="text-sm text-slate-500">khóa học chuyên sâu</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-6 pt-6 border-t border-slate-50">
+            <div>
+                <span class="block text-xs font-medium text-slate-400 uppercase tracking-wider">Giá combo</span>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-2xl font-extrabold text-emerald-600 font-outfit">
+                        {% if bundle.price == 0 %}Miễn phí{% else %}{{ bundle.price|floatformat:0 }}đ{% endif %}
+                    </span>
+                    {% if bundle.saving_amount > 0 %}
+                    <span class="text-xs text-slate-400 line-through font-medium">{{ bundle.original_total|floatformat:0 }}đ</span>
+                    {% endif %}
+                </div>
+                {% if bundle.saving_amount > 0 %}
+                <span class="block text-[10px] font-bold text-pink-500 uppercase tracking-wider mt-0.5">Tiết kiệm {{ bundle.saving_amount|floatformat:0 }}đ</span>
+                {% endif %}
+            </div>
+            
+            <a href="{% url 'course_bundle_detail' bundle.id %}" class="inline-flex items-center px-5 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/10 hover:shadow-lg hover:shadow-emerald-600/20">
+                Xem chi tiết
+                <svg class="w-4 h-4 ml-1.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </a>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full bg-white rounded-3xl shadow-sm border border-gray-100 p-12 text-center">
+        <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+        </div>
+        <h3 class="text-xl font-bold text-gray-800 mb-2 font-outfit">Chưa có gói khóa học nào</h3>
+        <p class="text-gray-500 max-w-md mx-auto">Hiện tại hệ thống chưa phát hành gói combo khóa học nào. Vui lòng quay lại sau.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
