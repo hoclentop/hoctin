@@ -2,39 +2,89 @@
 
 {% block title %}{{ title }} - HocTin LMS{% endblock %}
 
+{% block extra_head %}
+<!-- Marked for Markdown Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- MathJax Support for math rendering -->
+<script>
+    window.MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']]
+        },
+        options: {
+            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+    };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+    .markdown-content p { margin-bottom: 0.75rem; }
+    .markdown-content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .markdown-content ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .markdown-content code { background-color: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="max-w-3xl mx-auto py-12">
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-xl p-8">
-        <h1 class="text-3xl font-bold text-gray-900 font-outfit mb-2">{{ title }}</h1>
-        <div class="text-sm font-semibold text-indigo-600 mb-8">Khóa học: {{ course.title }}</div>
+<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        <form method="POST" class="space-y-6">
-            {% csrf_token %}
+        <!-- Left Column: Form Configuration -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-gray-100 shadow-xl p-8">
+            <h1 class="text-3xl font-bold text-gray-900 font-outfit mb-2">{{ title }}</h1>
+            <div class="text-sm font-semibold text-indigo-600 mb-8">Khóa học: {{ course.title }}</div>
             
-            {% for field in form %}
-            <div id="div_{{ field.name }}">
-                <label class="block text-sm font-bold text-gray-700 mb-2" for="{{ field.id_for_label }}">
-                    {{ field.label }}
-                </label>
-                {{ field }}
-                {% if field.help_text %}
-                <p class="mt-1 text-xs text-gray-500">{{ field.help_text }}</p>
-                {% endif %}
-                {% for error in field.errors %}
-                <p class="mt-1 text-xs text-red-600 font-semibold">{{ error }}</p>
+            <form method="POST" class="space-y-6">
+                {% csrf_token %}
+                
+                {% for field in form %}
+                <div id="div_{{ field.name }}">
+                    <label class="block text-sm font-bold text-gray-700 mb-2" for="{{ field.id_for_label }}">
+                        {{ field.label }}
+                    </label>
+                    {{ field }}
+                    {% if field.help_text %}
+                    <p class="mt-1 text-xs text-gray-500">{{ field.help_text }}</p>
+                    {% endif %}
+                    {% for error in field.errors %}
+                    <p class="mt-1 text-xs text-red-600 font-semibold">{{ error }}</p>
+                    {% endfor %}
+                </div>
                 {% endfor %}
+                
+                <div class="pt-6 flex justify-end gap-4">
+                    <a href="{% url 'manage_course_structure' course.id %}" class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">
+                        Hủy bỏ
+                    </a>
+                    <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-colors">
+                        Lưu bài học
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right Column: Student View & Live Preview -->
+        <div id="lesson-preview-container" class="lg:col-span-5 space-y-6 sticky top-6 self-start" style="display: none;">
+            <div class="bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-2xl p-6 shadow-sm">
+                <h3 class="font-outfit font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+                    <span class="animate-pulse inline-block h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
+                    BẢN XEM TRƯỚC HỌC SINH (Student View)
+                </h3>
+                <p class="text-xs text-indigo-100 mt-1">Nội dung bài học sẽ tự động hiển thị dưới dạng Markdown & LaTeX khi bạn nhập liệu.</p>
             </div>
-            {% endfor %}
             
-            <div class="pt-6 flex justify-end gap-4">
-                <a href="{% url 'manage_course_structure' course.id %}" class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">
-                    Hủy bỏ
-                </a>
-                <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-colors">
-                    Lưu bài học
-                </button>
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-xl p-8 min-h-[450px] flex flex-col">
+                <h4 class="font-bold text-gray-900 border-b border-gray-100 pb-3 mb-6 font-outfit text-lg flex items-center justify-between">
+                    <span>Nội dung bài học</span>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600">Markdown</span>
+                </h4>
+                <div id="lesson-preview-content" class="prose max-w-none text-gray-700 markdown-content flex-grow">
+                    <p class="text-gray-400 italic text-sm">Chưa có nội dung soạn thảo...</p>
+                </div>
             </div>
-        </form>
+        </div>
+
     </div>
 </div>
 
@@ -47,6 +97,10 @@ document.addEventListener("DOMContentLoaded", function() {
     const divExternalJudge = document.getElementById("div_external_judge_link");
     const divExternalProblem = document.getElementById("div_external_problem_code");
     const divTest = document.getElementById("div_test");
+    const previewContainer = document.getElementById("lesson-preview-container");
+    const contentTextarea = document.getElementById("id_content");
+    const previewContent = document.getElementById("lesson-preview-content");
+    let mathJaxTimeout;
     
     function toggleFields() {
         const selectedType = lessonTypeSelect.value;
@@ -57,14 +111,17 @@ document.addEventListener("DOMContentLoaded", function() {
         divExternalJudge.style.display = "none";
         divExternalProblem.style.display = "none";
         divTest.style.display = "none";
+        previewContainer.style.display = "none";
         
         if (selectedType === "THEORY") {
             divContent.style.display = "block";
             divVideoUrl.style.display = "block";
+            previewContainer.style.display = "block";
         } else if (selectedType === "EXERCISE") {
             divContent.style.display = "block";
             divExternalJudge.style.display = "block";
             divExternalProblem.style.display = "block";
+            previewContainer.style.display = "block";
         } else if (selectedType === "TEST") {
             divTest.style.display = "block";
         }
@@ -73,6 +130,92 @@ document.addEventListener("DOMContentLoaded", function() {
     if (lessonTypeSelect) {
         lessonTypeSelect.addEventListener("change", toggleFields);
         toggleFields(); // Initial call
+    }
+
+    // Cập nhật bản xem trước bài học
+    function updatePreview() {
+        if (!contentTextarea || !previewContent) return;
+        const text = contentTextarea.value.trim();
+        if (text) {
+            previewContent.innerHTML = marked.parse(text);
+            
+            // Tránh chạy MathJax quá nhiều lần liên tục khi đang gõ
+            clearTimeout(mathJaxTimeout);
+            mathJaxTimeout = setTimeout(() => {
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise([previewContent]).catch(err => console.log(err));
+                }
+            }, 150);
+        } else {
+            previewContent.innerHTML = '<p class="text-gray-400 italic text-sm">Chưa có nội dung soạn thảo...</p>';
+        }
+    }
+
+    if (contentTextarea) {
+        contentTextarea.addEventListener("input", updatePreview);
+        contentTextarea.addEventListener("keyup", updatePreview);
+        updatePreview(); // Chạy xem trước lần đầu
+    }
+
+    // Xử lý paste ảnh từ clipboard vào khung soạn thảo bài học
+    if (contentTextarea) {
+        contentTextarea.addEventListener("paste", async function(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (const item of items) {
+                if (item.type.indexOf("image") === 0) {
+                    e.preventDefault(); // Ngăn hành vi dán mặc định của ảnh
+                    const file = item.getAsFile();
+                    
+                    // Tạo loading placeholder tại vị trí con trỏ trong textarea
+                    const placeholder = "![Đang tải ảnh...]()";
+                    const startPos = contentTextarea.selectionStart;
+                    const endPos = contentTextarea.selectionEnd;
+                    const originalValue = contentTextarea.value;
+                    
+                    // Chèn placeholder
+                    contentTextarea.value = originalValue.substring(0, startPos) + placeholder + originalValue.substring(endPos);
+                    updatePreview(); // Cập nhật màn hình xem thử với placeholder
+                    
+                    // Chuẩn bị dữ liệu tải lên
+                    const formData = new FormData();
+                    const ext = file.name ? file.name.split('.').pop() : 'png';
+                    const newName = `pasted_img_${Date.now()}.${ext}`;
+                    formData.append('image', file, newName);
+                    
+                    try {
+                        const response = await fetch('/upload-image/', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            if (result.url) {
+                                // Thay thế placeholder bằng link ảnh thực tế
+                                const markdownImage = `![ảnh](${result.url})`;
+                                contentTextarea.value = contentTextarea.value.replace(placeholder, markdownImage);
+                                
+                                // Di chuyển con trỏ chuột ra sau bức ảnh mới chèn
+                                const newCursorPos = startPos + markdownImage.length;
+                                contentTextarea.setSelectionRange(newCursorPos, newCursorPos);
+                                
+                                updatePreview(); // Cập nhật màn hình xem thử với ảnh thực tế
+                            } else {
+                                throw new Error('Upload failed');
+                            }
+                        } else {
+                            throw new Error('Server error');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('Có lỗi xảy ra khi tải ảnh lên máy chủ. Vui lòng thử lại.');
+                        // Xóa placeholder nếu lỗi
+                        contentTextarea.value = contentTextarea.value.replace(placeholder, '');
+                        updatePreview();
+                    }
+                }
+            }
+        });
     }
 });
 </script>
