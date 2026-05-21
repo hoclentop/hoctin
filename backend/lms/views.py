@@ -160,7 +160,11 @@ def course_detail(request, course_id):
     })
 
 def test_list(request):
-    if request.user.is_authenticated and (request.user.is_superuser or request.user.is_staff or (hasattr(request.user, 'profile') and request.user.profile.can_create_exams)):
+    if request.user.is_authenticated and (
+        request.user.is_superuser 
+        or request.user.is_staff 
+        or (hasattr(request.user, 'profile') and (request.user.profile.can_create_exams or request.user.profile.can_create_courses))
+    ):
         tests = Test.objects.all().order_by('-id')
     else:
         tests = Test.objects.filter(test_type='STANDALONE').order_by('-id')
@@ -172,8 +176,13 @@ def test_detail(request, test_id):
     is_registered = False
     registration = None
     if request.user.is_authenticated:
-        # Bỏ qua yêu cầu đăng ký thi nếu user là admin, staff, hoặc người tạo đề thi / người tạo khóa học liên kết
-        is_bypass_test = request.user.is_superuser or request.user.is_staff or test.creator == request.user
+        # Bỏ qua yêu cầu đăng ký thi nếu user là admin, staff, hoặc người tạo đề thi / người tạo khóa học liên kết hoặc giáo viên
+        is_bypass_test = (
+            request.user.is_superuser 
+            or request.user.is_staff 
+            or test.creator == request.user
+            or (hasattr(request.user, 'profile') and (request.user.profile.can_create_exams or request.user.profile.can_create_courses))
+        )
         if not is_bypass_test:
             from lms.models import Lesson
             lesson = Lesson.objects.filter(test=test).first()
@@ -719,8 +728,13 @@ def take_test(request, test_id):
     
     is_exam_over = test.is_official and test.end_time and now > test.end_time
     
-    # Bỏ qua kiểm tra mua đề thi / đăng ký thi nếu user là admin, staff, hoặc người tạo đề thi / người tạo khóa học liên kết
-    is_bypass_test = request.user.is_superuser or request.user.is_staff or test.creator == request.user
+    # Bỏ qua kiểm tra mua đề thi / đăng ký thi nếu user là admin, staff, hoặc người tạo đề thi / người tạo khóa học liên kết hoặc giáo viên
+    is_bypass_test = (
+        request.user.is_superuser 
+        or request.user.is_staff 
+        or test.creator == request.user
+        or (hasattr(request.user, 'profile') and (request.user.profile.can_create_exams or request.user.profile.can_create_courses))
+    )
     if not is_bypass_test:
         from lms.models import Lesson
         lesson = Lesson.objects.filter(test=test).first()
@@ -1781,39 +1795,45 @@ def create_question(request):
             if question_type == 1:
                 # Trắc nghiệm 1 lựa chọn
                 choice_texts = request.POST.getlist('choice_text_1[]')
+                choice_positions = request.POST.getlist('choice_position_1[]')
                 correct_idx = int(request.POST.get('correct_choice_1', 0))
                 for idx, txt in enumerate(choice_texts):
                     if txt.strip():
+                        pos = int(choice_positions[idx]) if idx < len(choice_positions) and choice_positions[idx].strip() else 1
                         Choice.objects.create(
                             question=question,
                             content=txt.strip(),
                             is_correct=(idx == correct_idx),
-                            position=idx
+                            position=pos
                         )
             elif question_type == 2:
                 # Trắc nghiệm nhiều lựa chọn
                 choice_texts = request.POST.getlist('choice_text_2[]')
+                choice_positions = request.POST.getlist('choice_position_2[]')
                 correct_indices = [int(i) for i in request.POST.getlist('correct_choices_2[]')]
                 for idx, txt in enumerate(choice_texts):
                     if txt.strip():
+                        pos = int(choice_positions[idx]) if idx < len(choice_positions) and choice_positions[idx].strip() else 1
                         Choice.objects.create(
                             question=question,
                             content=txt.strip(),
                             is_correct=(idx in correct_indices),
-                            position=idx
+                            position=pos
                         )
             elif question_type == 3:
                 # Đúng/Sai 4 ý
                 choice_texts = request.POST.getlist('choice_text_3[]')
+                choice_positions = request.POST.getlist('choice_position_3[]')
                 for idx in range(4):
                     txt = choice_texts[idx] if idx < len(choice_texts) else ""
                     ans_val = request.POST.get(f'tf_choice_3_{idx}', 'false') == 'true'
                     if txt.strip():
+                        pos = int(choice_positions[idx]) if idx < len(choice_positions) and choice_positions[idx].strip() else 1
                         Choice.objects.create(
                             question=question,
                             content=txt.strip(),
                             is_correct=ans_val,
-                            position=idx
+                            position=pos
                         )
             elif question_type == 4:
                 # Trả lời ngắn (chấp nhận nhiều đáp án đúng, mỗi đáp án có cấu hình so khớp riêng biệt)
@@ -1891,39 +1911,45 @@ def edit_question(request, pk):
             if question_type == 1:
                 # Trắc nghiệm 1 lựa chọn
                 choice_texts = request.POST.getlist('choice_text_1[]')
+                choice_positions = request.POST.getlist('choice_position_1[]')
                 correct_idx = int(request.POST.get('correct_choice_1', 0))
                 for idx, txt in enumerate(choice_texts):
                     if txt.strip():
+                        pos = int(choice_positions[idx]) if idx < len(choice_positions) and choice_positions[idx].strip() else 1
                         Choice.objects.create(
                             question=question,
                             content=txt.strip(),
                             is_correct=(idx == correct_idx),
-                            position=idx
+                            position=pos
                         )
             elif question_type == 2:
                 # Trắc nghiệm nhiều lựa chọn
                 choice_texts = request.POST.getlist('choice_text_2[]')
+                choice_positions = request.POST.getlist('choice_position_2[]')
                 correct_indices = [int(i) for i in request.POST.getlist('correct_choices_2[]')]
                 for idx, txt in enumerate(choice_texts):
                     if txt.strip():
+                        pos = int(choice_positions[idx]) if idx < len(choice_positions) and choice_positions[idx].strip() else 1
                         Choice.objects.create(
                             question=question,
                             content=txt.strip(),
                             is_correct=(idx in correct_indices),
-                            position=idx
+                            position=pos
                         )
             elif question_type == 3:
                 # Đúng/Sai 4 ý
                 choice_texts = request.POST.getlist('choice_text_3[]')
+                choice_positions = request.POST.getlist('choice_position_3[]')
                 for idx in range(4):
                     txt = choice_texts[idx] if idx < len(choice_texts) else ""
                     ans_val = request.POST.get(f'tf_choice_3_{idx}', 'false') == 'true'
                     if txt.strip():
+                        pos = int(choice_positions[idx]) if idx < len(choice_positions) and choice_positions[idx].strip() else 1
                         Choice.objects.create(
                             question=question,
                             content=txt.strip(),
                             is_correct=ans_val,
-                            position=idx
+                            position=pos
                         )
             elif question_type == 4:
                 # Trả lời ngắn
@@ -1980,20 +2006,20 @@ def edit_question(request, pk):
     if question.question_type == 1 and choices:
         c1 = []
         for idx, opt in enumerate(choices):
-            c1.append({'text': opt.content, 'is_correct': opt.is_correct})
+            c1.append({'text': opt.content, 'is_correct': opt.is_correct, 'position': opt.position})
             if opt.is_correct:
                 correct_choice_1 = idx
     elif question.question_type == 2 and choices:
-        c2 = [{'text': opt.content, 'is_correct': opt.is_correct} for opt in choices]
+        c2 = [{'text': opt.content, 'is_correct': opt.is_correct, 'position': opt.position} for opt in choices]
     elif question.question_type == 3 and choices:
         # Đảm bảo đủ 4 ý
         c3 = []
         for idx in range(4):
             if idx < len(choices):
                 opt = choices[idx]
-                c3.append({'text': opt.content, 'is_correct': opt.is_correct})
+                c3.append({'text': opt.content, 'is_correct': opt.is_correct, 'position': opt.position})
             else:
-                c3.append({'text': '', 'is_correct': False})
+                c3.append({'text': '', 'is_correct': False, 'position': 1})
     elif question.question_type == 4 and choices:
         c4 = [{'text': opt.content, 'is_case_sensitive': opt.is_correct, 'ignore_spaces': (opt.position == 1)} for opt in choices]
         
@@ -2424,7 +2450,7 @@ def bulk_assign_group_ajax(request):
 def duplicate_test(request, test_id):
     original_test = get_object_or_404(Test, id=test_id)
     
-    if not request.user.is_superuser and not request.user.profile.can_create_exams:
+    if not request.user.is_superuser and not request.user.is_staff and not getattr(request.user.profile, 'can_create_exams', False) and not getattr(request.user.profile, 'can_create_courses', False):
         messages.error(request, "Bạn không có quyền tạo/nhân đôi đề thi.")
         return redirect('test_list')
         
@@ -2473,7 +2499,7 @@ def duplicate_test(request, test_id):
 @login_required
 def create_test(request):
     """Bước 1: Thiết lập cấu hình đề thi thô mới."""
-    if not request.user.is_superuser and not request.user.profile.can_create_exams:
+    if not request.user.is_superuser and not request.user.is_staff and not getattr(request.user.profile, 'can_create_exams', False) and not getattr(request.user.profile, 'can_create_courses', False):
         messages.error(request, "Bạn không có quyền tạo đề thi.")
         return redirect('test_list')
         

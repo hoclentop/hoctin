@@ -8,7 +8,7 @@
         <h1 class="text-3xl font-bold text-gray-900 font-outfit">Đề thi & Kiểm tra</h1>
         <p class="text-gray-600">Thử thách bản thân với các bộ đề từ cơ bản đến nâng cao.</p>
     </div>
-    {% if user.is_superuser or user.profile.can_create_exams %}
+    {% if user.is_superuser or user.is_staff or user.profile.can_create_exams or user.profile.can_create_courses %}
         <div class="mt-4 md:mt-0 md:ml-4">
             <a href="{% url 'create_test' %}" class="inline-flex items-center px-6 py-3 border border-transparent rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all duration-200 gap-2">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

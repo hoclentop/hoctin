@@ -1801,7 +1801,181 @@ class CreatorAdminTrialTests(TestCase):
         self.assertContains(response, "Khóa học Tuần Tự Của Tôi")
         self.assertContains(response, "Xem thử (Người tạo)")
 
+    def test_teacher_can_create_and_duplicate_test(self):
+        from django.urls import reverse
+        from lms.models import Test
+        
+        self.client.login(username="course_creator", password="password")
+        
+        # 1. Truy cập trang tạo đề thi
+        response = self.client.get(reverse('create_test'))
+        self.assertEqual(response.status_code, 200)
+        
+        # 2. Tạo đề thi mới bằng POST
+        data = {
+            'title': 'Đề thi của giáo viên',
+            'price': '10000',
+            'duration': '45',
+            'test_type': 'STANDALONE'
+        }
+        response = self.client.post(reverse('create_test'), data=data)
+        self.assertEqual(response.status_code, 302) # Nên chuyển hướng đến manage_test_structure
+        
+        new_test = Test.objects.filter(title='Đề thi của giáo viên').first()
+        self.assertIsNotNone(new_test)
+        self.assertEqual(new_test.creator, self.creator)
+        
+        # 3. Nhân đôi đề thi của chính mình
+        response = self.client.post(reverse('duplicate_test', args=[new_test.id]))
+        self.assertEqual(response.status_code, 302) # Nên chuyển hướng đến manage_test_structure
+        
+        duplicated_test = Test.objects.filter(title='[Bản sao] Đề thi của giáo viên').first()
+        self.assertIsNotNone(duplicated_test)
+        self.assertEqual(duplicated_test.creator, self.creator)
+
+    def test_student_cannot_create_or_duplicate_test(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+        
+        # Tạo học sinh thường
+        student = User.objects.create_user(username="student", password="password")
+        self.client.login(username="student", password="password")
+        
+        # 1. Truy cập trang tạo đề thi bị chặn
+        response = self.client.get(reverse('create_test'))
+        self.assertEqual(response.status_code, 302) # Chuyển hướng về test_list
+        
+        # 2. Gửi request POST tạo đề thi bị chặn
+        data = {
+            'title': 'Đề thi gian lận',
+            'price': '0',
+            'duration': '45',
+            'test_type': 'STANDALONE'
+        }
+        response = self.client.post(reverse('create_test'), data=data)
+        self.assertEqual(response.status_code, 302)
+        
+        # 3. Gửi request POST nhân đôi đề thi bị chặn
+        response = self.client.post(reverse('duplicate_test', args=[self.test.id]))
+        self.assertEqual(response.status_code, 302)
+
+    def test_admin_bypasses_test_ownership_and_registration(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+        
+        # Tạo admin/superuser
+        admin_user = User.objects.create_superuser(username="admin", password="password")
+        self.client.login(username="admin", password="password")
+        
+        # 1. Truy cập chi tiết đề thi trả phí của giáo viên khác
+        response = self.client.get(reverse('test_detail', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['is_registered'])
+        
+        # 2. Tiến hành làm thử đề thi
+        response = self.client.get(reverse('take_test', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Đề kiểm tra của tôi")
 
 
+class QuestionChoicePositionTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_superuser(username="admin", password="password")
+        self.client.login(username="admin", password="password")
 
+    def test_create_question_saves_custom_positions(self):
+        from django.urls import reverse
+        from lms.models import Question, Choice
+        
+        url = reverse('create_question')
+        data = {
+            'question_type': '1',
+            'content': 'Câu hỏi 1?',
+            'choice_text_1[]': ['Đáp án A', 'Đáp án B', 'Đáp án C'],
+            'choice_position_1[]': ['3', '1', '2'],
+            'correct_choice_1': '0',
+            'is_public': 'on',
+            'action': 'save'
+        }
+        response = self.client.post(url, data=data)
+        self.assertEqual(response.status_code, 302)
+        
+        question = Question.objects.filter(content='Câu hỏi 1?').first()
+        self.assertIsNotNone(question)
+        self.assertEqual(question.question_type, 1)
+        
+        choices = list(Choice.objects.filter(question=question).order_by('id'))
+        self.assertEqual(len(choices), 3)
+        self.assertEqual(choices[0].content, 'Đáp án A')
+        self.assertEqual(choices[0].position, 3)
+        self.assertEqual(choices[1].content, 'Đáp án B')
+        self.assertEqual(choices[1].position, 1)
+        self.assertEqual(choices[2].content, 'Đáp án C')
+        self.assertEqual(choices[2].position, 2)
 
+    def test_create_question_defaults_positions_to_1(self):
+        from django.urls import reverse
+        from lms.models import Question, Choice
+        
+        url = reverse('create_question')
+        data = {
+            'question_type': '1',
+            'content': 'Câu hỏi 2?',
+            'choice_text_1[]': ['Đáp án A', 'Đáp án B'],
+            'choice_position_1[]': ['', ' '],  # Trống
+            'correct_choice_1': '0',
+            'is_public': 'on',
+            'action': 'save'
+        }
+        response = self.client.post(url, data=data)
+        self.assertEqual(response.status_code, 302)
+        
+        question = Question.objects.filter(content='Câu hỏi 2?').first()
+        choices = list(Choice.objects.filter(question=question).order_by('id'))
+        self.assertEqual(len(choices), 2)
+        self.assertEqual(choices[0].position, 1)
+        self.assertEqual(choices[1].position, 1)
+
+    def test_edit_question_updates_positions_correctly(self):
+        from django.urls import reverse
+        from lms.models import Question, Choice
+        
+        # 1. Tạo câu hỏi trước
+        question = Question.objects.create(
+            content='Câu hỏi 3?',
+            question_type=2,
+            is_public=True,
+            creator=self.user
+        )
+        c1 = Choice.objects.create(question=question, content='A', is_correct=True, position=1)
+        c2 = Choice.objects.create(question=question, content='B', is_correct=False, position=1)
+        
+        # 2. Edit thông qua POST
+        url = reverse('edit_question', args=[question.id])
+        data = {
+            'question_type': '2',
+            'content': 'Câu hỏi 3 đã sửa?',
+            'choice_text_2[]': ['A', 'B', 'C'],
+            'choice_position_2[]': ['10', '5', '8'],
+            'correct_choices_2[]': ['0', '2'],
+            'is_public': 'on',
+            'action': 'save'
+        }
+        response = self.client.post(url, data=data)
+        self.assertEqual(response.status_code, 302)
+        
+        question.refresh_from_db()
+        self.assertEqual(question.content, 'Câu hỏi 3 đã sửa?')
+        
+        choices = list(Choice.objects.filter(question=question).order_by('id'))
+        self.assertEqual(len(choices), 3)
+        self.assertEqual(choices[0].content, 'A')
+        self.assertEqual(choices[0].position, 10)
+        self.assertEqual(choices[0].is_correct, True)
+        self.assertEqual(choices[1].content, 'B')
+        self.assertEqual(choices[1].position, 5)
+        self.assertEqual(choices[1].is_correct, False)
+        self.assertEqual(choices[2].content, 'C')
+        self.assertEqual(choices[2].position, 8)
+        self.assertEqual(choices[2].is_correct, True)
