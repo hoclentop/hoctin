@@ -419,6 +419,9 @@ class CourseOwnership(models.Model):
     def has_active_ownership(cls, user, course):
         if not user.is_authenticated:
             return False
+        # Cho phép admin, staff hoặc người tạo khóa học luôn có quyền sở hữu để học thử
+        if user.is_superuser or user.is_staff or course.creator == user:
+            return True
         from django.utils import timezone
         return cls.objects.filter(
             user=user,

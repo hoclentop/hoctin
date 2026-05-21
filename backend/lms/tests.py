@@ -1722,5 +1722,86 @@ class StudentMySpaceTestCase(TestCase):
         self.assertContains(response, "2 lần")
 
 
+class CreatorAdminTrialTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from lms.models import Course, Lesson, Test
+        
+        self.creator = User.objects.create_user(username="course_creator", password="password")
+        self.creator.profile.can_create_courses = True
+        self.creator.profile.save()
+        
+        self.course_seq = Course.objects.create(
+            title="Khóa học Tuần Tự Của Tôi",
+            learning_mode="SEQUENTIAL",
+            creator=self.creator
+        )
+        
+        self.lesson1 = Lesson.objects.create(
+            course=self.course_seq,
+            title="Bài 1",
+            order_index=1,
+            lesson_type="THEORY"
+        )
+        self.lesson2 = Lesson.objects.create(
+            course=self.course_seq,
+            title="Bài 2",
+            order_index=2,
+            lesson_type="THEORY"
+        )
+        
+        self.test = Test.objects.create(
+            title="Đề kiểm tra của tôi",
+            test_type="STANDALONE",
+            price=15000,
+            creator=self.creator
+        )
+        
+        self.lesson_test = Lesson.objects.create(
+            course=self.course_seq,
+            title="Bài 3: Thi thử",
+            order_index=3,
+            lesson_type="TEST",
+            test=self.test
+        )
+
+    def test_creator_bypasses_sequential_lessons(self):
+        from django.urls import reverse
+        self.client.login(username="course_creator", password="password")
+        
+        # Thử truy cập Bài 2 trực tiếp (chưa học bài 1)
+        response = self.client.get(reverse('lesson_detail', args=[self.course_seq.id, self.lesson2.id]))
+        # Creator được xem thử, không bị chặn (trả về 200 OK thay vì redirect 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Bài 2")
+
+    def test_creator_bypasses_test_ownership_and_registration(self):
+        from django.urls import reverse
+        self.client.login(username="course_creator", password="password")
+        
+        # 1. Truy cập trang detail đề thi không bị bắt đăng ký/thanh toán
+        response = self.client.get(reverse('test_detail', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['is_registered'])
+        
+        # 2. Bắt đầu làm bài thi không bị chặn (trả về 200 OK)
+        response = self.client.get(reverse('take_test', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Đề kiểm tra của tôi")
+
+    def test_creator_dashboard_shows_created_courses_with_badge(self):
+        from django.urls import reverse
+        self.client.login(username="course_creator", password="password")
+        
+        response = self.client.get(reverse('my_courses'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'lms/my_courses.html')
+        
+        # Đảm bảo hiển thị khóa học tự tạo và huy hiệu Xem thử (Người tạo)
+        self.assertContains(response, "Khóa học Tuần Tự Của Tôi")
+        self.assertContains(response, "Xem thử (Người tạo)")
+
+
+
 
 

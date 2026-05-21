@@ -134,7 +134,9 @@
                     <div class="mt-4 p-3 bg-indigo-50/50 border border-indigo-100/50 rounded-xl text-left text-xs text-indigo-800 flex items-center gap-2">
                         <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                         <span>
-                            {% if ownership.expires_at %}
+                            {% if request.user.is_superuser or request.user.is_staff or course.creator == request.user %}
+                                Vai trò: <strong class="font-bold text-indigo-700">Xem thử (Creator/Admin)</strong>
+                            {% elif ownership.expires_at %}
                                 Hạn học: <strong class="font-bold">{{ ownership.expires_at|date:"d/m/Y H:i" }}</strong>
                             {% else %}
                                 Hạn học: <strong class="font-bold">Trọn đời</strong>

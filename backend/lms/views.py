@@ -126,7 +126,7 @@ def course_detail(request, course_id):
     ownership = None
     if request.user.is_authenticated:
         ownership = CourseOwnership.objects.filter(user=request.user, course=course).first()
-        is_owned = ownership is not None and not ownership.is_expired
+        is_owned = CourseOwnership.has_active_ownership(request.user, course)
         if is_owned:
             completed_ids = LessonProgress.objects.filter(user=request.user, is_completed=True).values_list('lesson_id', flat=True)
             first_incomplete = course.lessons.exclude(id__in=completed_ids).order_by('order_index').first()
@@ -172,9 +172,20 @@ def test_detail(request, test_id):
     is_registered = False
     registration = None
     if request.user.is_authenticated:
-        registration = TestOwnership.objects.filter(user=request.user, test=test).first()
-        if registration and registration.agreed_rules:
+        # Bỏ qua yêu cầu đăng ký thi nếu user là admin, staff, hoặc người tạo đề thi / người tạo khóa học liên kết
+        is_bypass_test = request.user.is_superuser or request.user.is_staff or test.creator == request.user
+        if not is_bypass_test:
+            from lms.models import Lesson
+            lesson = Lesson.objects.filter(test=test).first()
+            if lesson and (lesson.course.creator == request.user or CourseOwnership.has_active_ownership(request.user, lesson.course)):
+                is_bypass_test = True
+                
+        if is_bypass_test:
             is_registered = True
+        else:
+            registration = TestOwnership.objects.filter(user=request.user, test=test).first()
+            if registration and registration.agreed_rules:
+                is_registered = True
             
     is_upcoming = False
     is_ongoing = False
@@ -456,8 +467,10 @@ def lesson_detail(request, course_id, lesson_id):
         messages.error(request, "Quyền học khóa học này đã hết hạn hoặc bạn chưa đăng ký khóa học.")
         return redirect('course_detail', course_id=course.id)
         
+    is_trial_user = request.user.is_superuser or request.user.is_staff or course.creator == request.user
+        
     # 2. Sequential Mode check
-    if course.learning_mode == 'SEQUENTIAL':
+    if course.learning_mode == 'SEQUENTIAL' and not is_trial_user:
         previous_lessons = course.lessons.filter(order_index__lt=lesson.order_index).order_by('order_index')
         for prev_l in previous_lessons:
             completed = LessonProgress.objects.filter(user=request.user, lesson=prev_l, is_completed=True).exists()
@@ -475,7 +488,7 @@ def lesson_detail(request, course_id, lesson_id):
         is_completed = LessonProgress.objects.filter(user=request.user, lesson=l, is_completed=True).exists()
         
         is_locked = False
-        if course.learning_mode == 'SEQUENTIAL' and l.order_index > lesson.order_index:
+        if course.learning_mode == 'SEQUENTIAL' and l.order_index > lesson.order_index and not is_trial_user:
             # Check if there's any incomplete lesson before this one
             incomplete_before = course.lessons.filter(order_index__lt=l.order_index).exclude(
                 id__in=LessonProgress.objects.filter(user=request.user, is_completed=True).values_list('lesson_id', flat=True)
@@ -706,17 +719,25 @@ def take_test(request, test_id):
     
     is_exam_over = test.is_official and test.end_time and now > test.end_time
     
+    # Bỏ qua kiểm tra mua đề thi / đăng ký thi nếu user là admin, staff, hoặc người tạo đề thi / người tạo khóa học liên kết
+    is_bypass_test = request.user.is_superuser or request.user.is_staff or test.creator == request.user
+    if not is_bypass_test:
+        from lms.models import Lesson
+        lesson = Lesson.objects.filter(test=test).first()
+        if lesson and (lesson.course.creator == request.user or CourseOwnership.has_active_ownership(request.user, lesson.course)):
+            is_bypass_test = True
+    
     if test.is_official:
         if is_exam_over:
             # Hết giờ thi chính thức -> Cho phép làm bài luyện tập (phát sinh lượt làm bài tự do)
-            if test.price > 0 and not TestOwnership.objects.filter(user=request.user, test=test).exists():
+            if not is_bypass_test and test.price > 0 and not TestOwnership.objects.filter(user=request.user, test=test).exists():
                 messages.error(request, "Bạn cần mua đề thi này để làm bài luyện tập.")
                 return redirect('test_detail', test_id=test.id)
             is_attempt_official = False
         else:
             # Đang trong thời gian thi chính thức
             registration = TestOwnership.objects.filter(user=request.user, test=test).first()
-            if not registration or not registration.agreed_rules:
+            if not is_bypass_test and (not registration or not registration.agreed_rules):
                 messages.error(request, "Bạn chưa hoàn tất thủ tục đăng ký dự thi và đồng ý quy chế phòng thi.")
                 return redirect('test_detail', test_id=test.id)
                 
@@ -732,7 +753,7 @@ def take_test(request, test_id):
             is_attempt_official = True
     else:
         # Đề thi luyện tập thông thường
-        if test.price > 0 and not TestOwnership.objects.filter(user=request.user, test=test).exists():
+        if not is_bypass_test and test.price > 0 and not TestOwnership.objects.filter(user=request.user, test=test).exists():
             messages.error(request, "Bạn cần thanh toán phí đề thi này trước khi làm bài.")
             return redirect('test_detail', test_id=test.id)
         is_attempt_official = False
@@ -3649,12 +3670,7 @@ def course_bundle_list(request):
             b.is_owned = False
             continue
         if request.user.is_authenticated:
-            owned_count = CourseOwnership.objects.filter(
-                user=request.user, 
-                course__in=all_courses
-            ).filter(
-                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
-            ).count()
+            owned_count = sum(1 for c in all_courses if CourseOwnership.has_active_ownership(request.user, c))
             b.is_owned = (owned_count == all_courses.count())
         else:
             b.is_owned = False
@@ -3714,12 +3730,7 @@ def buy_course_bundle(request, bundle_id):
         return redirect('course_bundle_detail', bundle_id=bundle.id)
         
     # Kiểm tra xem người dùng đã sở hữu toàn bộ các khóa học trong gói chưa
-    owned_count = CourseOwnership.objects.filter(
-        user=request.user, 
-        course__in=courses
-    ).filter(
-        Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
-    ).count()
+    owned_count = sum(1 for c in courses if CourseOwnership.has_active_ownership(request.user, c))
     if owned_count == courses.count():
         messages.info(request, "Bạn đã sở hữu toàn bộ khóa học trong gói này rồi.")
         return redirect('course_bundle_detail', bundle_id=bundle.id)
@@ -3835,12 +3846,7 @@ def course_bundle_checkout(request, bundle_id):
     courses = bundle.courses.all()
     
     # Kiểm tra xem đã sở hữu trọn combo chưa
-    owned_count = CourseOwnership.objects.filter(
-        user=request.user, 
-        course__in=courses
-    ).filter(
-        Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
-    ).count()
+    owned_count = sum(1 for c in courses if CourseOwnership.has_active_ownership(request.user, c))
     if courses.exists() and owned_count == courses.count():
         messages.info(request, "Bạn đã sở hữu toàn bộ các khóa học trong gói combo này.")
         return redirect('course_bundle_detail', bundle_id=bundle.id)
@@ -4182,12 +4188,14 @@ def teacher_course_detail_progress(request, course_id):
 
 @login_required
 def my_courses(request):
-    from lms.models import CourseOwnership, LessonProgress
+    from lms.models import CourseOwnership, LessonProgress, Course
     ownerships = CourseOwnership.objects.filter(user=request.user).select_related('course').order_by('-purchased_at')
     
     course_data = []
+    owned_course_ids = set()
     for o in ownerships:
         course = o.course
+        owned_course_ids.add(course.id)
         total_lessons = course.lessons.count()
         completed_lessons = LessonProgress.objects.filter(user=request.user, lesson__course=course, is_completed=True).count()
         progress_percent = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
@@ -4199,7 +4207,27 @@ def my_courses(request):
             'completed_lessons': completed_lessons,
             'progress_percent': progress_percent,
             'is_expired': o.is_expired,
+            'is_creator_trial': False,
         })
+        
+    # Bổ sung các khóa học tự tạo để giáo viên/admin dễ dàng vào học thử / xem thử
+    if request.user.profile.can_create_courses or request.user.is_superuser or request.user.is_staff:
+        created_courses = Course.objects.filter(creator=request.user).order_by('-id')
+        for course in created_courses:
+            if course.id not in owned_course_ids:
+                total_lessons = course.lessons.count()
+                completed_lessons = LessonProgress.objects.filter(user=request.user, lesson__course=course, is_completed=True).count()
+                progress_percent = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
+                
+                course_data.append({
+                    'ownership': None,
+                    'course': course,
+                    'total_lessons': total_lessons,
+                    'completed_lessons': completed_lessons,
+                    'progress_percent': progress_percent,
+                    'is_expired': False,
+                    'is_creator_trial': True,
+                })
         
     return render(request, 'lms/my_courses.html', {'courses': course_data})
 

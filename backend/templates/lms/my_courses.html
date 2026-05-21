@@ -55,7 +55,9 @@
                             <!-- Expiry Info -->
                             <div class="flex items-center gap-2 mb-4 text-xs">
                                 <span class="text-slate-400 font-medium">Hạn học:</span>
-                                {% if item.ownership.expires_at %}
+                                {% if item.is_creator_trial %}
+                                    <span class="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">Xem thử (Người tạo)</span>
+                                {% elif item.ownership.expires_at %}
                                     {% if item.is_expired %}
                                         <span class="text-red-600 font-bold">Hết hạn vào {{ item.ownership.expires_at|date:"d/m/Y" }}</span>
                                     {% else %}
