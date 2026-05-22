@@ -11,7 +11,9 @@
     <!-- KaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, { ignoredClasses: ['markdown-content'] });"></script>
+    <!-- Marked for Markdown Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     
@@ -58,6 +60,34 @@
             font-size: 0.875rem !important;
             font-family: inherit !important;
             box-shadow: none !important;
+        }
+
+        /* Markdown List Styles */
+        .markdown-content ul, 
+        .preview-content ul, 
+        .question-body ul, 
+        .question-content-preview ul {
+            list-style-type: disc !important;
+            margin-left: 1.5rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+        .markdown-content ol, 
+        .preview-content ol, 
+        .question-body ol, 
+        .question-content-preview ol {
+            list-style-type: decimal !important;
+            margin-left: 1.5rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+        .markdown-content li, 
+        .preview-content li, 
+        .question-body li, 
+        .question-content-preview li {
+            margin-top: 0.25rem !important;
+            margin-bottom: 0.25rem !important;
+            line-height: 1.6 !important;
         }
     </style>
     {% block extra_head %}{% endblock %}

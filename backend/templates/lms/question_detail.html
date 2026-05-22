@@ -134,23 +134,31 @@
             const targetEl = document.getElementById('rendered-question-content');
             if (targetEl) {
                 targetEl.innerHTML = marked.parse(rawContent);
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(targetEl, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false
+                    });
+                }
             }
 
             // Render markdown content in choices
             document.querySelectorAll('.markdown-content').forEach(el => {
                 const rawText = el.textContent || el.innerText || '';
                 el.innerHTML = marked.parse(rawText.trim());
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(el, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false
+                    });
+                }
             });
-
-            if (window.renderMathInElement) {
-                window.renderMathInElement(document.getElementById('question-detail-container'), {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false}
-                    ],
-                    throwOnError: false
-                });
-            }
         });
      "
      id="question-detail-container">

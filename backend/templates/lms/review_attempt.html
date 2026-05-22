@@ -2,6 +2,11 @@
 
 {% block title %}Xem lại bài: {{ attempt.test.title }}{% endblock %}
 
+{% block extra_head %}
+<!-- Marked for Markdown Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="mb-8 flex items-center justify-between">
@@ -159,32 +164,89 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Load Marked and render markdown dynamically -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
     if (window.marked) {
         marked.use({
             renderer: {
-                html(html) {
-                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                html(token) {
+                    const text = (typeof token === 'string') ? token : (token.raw || token.text || '');
+                    return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 }
             }
         });
     }
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.markdown-content').forEach(el => {
-            const rawText = el.textContent || el.innerText || '';
-            el.innerHTML = marked.parse(rawText.trim());
-        });
-        if (window.renderMathInElement) {
-            window.renderMathInElement(document.body, {
-                delimiters: [
-                    {left: '$$', right: '$$', display: true},
-                    {left: '$', right: '$', display: false}
-                ],
-                throwOnError: false
-            });
+
+    function renderMarkdownAndMath() {
+        if (!window.marked) {
+            console.warn("marked library is not loaded yet.");
+            return;
         }
-    });
+        
+        const isKatexReady = typeof window.renderMathInElement === 'function';
+        
+        document.querySelectorAll('.markdown-content').forEach(el => {
+            // Only skip if both Markdown has been parsed AND KaTeX math is loaded/rendered
+            if (el.dataset.parsed === 'true' && (el.dataset.mathRendered === 'true' || !isKatexReady)) {
+                return;
+            }
+            
+            if (el.dataset.parsed !== 'true') {
+                const rawText = el.textContent || el.innerText || '';
+                // Safely escape < and > before parsing markdown
+                const escapedText = rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                
+                // Extract math blocks to placeholders to prevent backslash stripping by marked
+                const mathBlocks = [];
+                let placeholderIndex = 0;
+                let processedText = escapedText;
+                
+                // Block math $$
+                processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
+                    const placeholder = `__BLOCK_MATH_PLACEHOLDER_${placeholderIndex}__`;
+                    mathBlocks.push({ placeholder, math: `$$${math}$$` });
+                    placeholderIndex++;
+                    return placeholder;
+                });
+                
+                // Inline math $
+                processedText = processedText.replace(/\$([^\$\n]+?)\$/g, (match, math) => {
+                    const placeholder = `__INLINE_MATH_PLACEHOLDER_${placeholderIndex}__`;
+                    mathBlocks.push({ placeholder, math: `$${math}$` });
+                    placeholderIndex++;
+                    return placeholder;
+                });
+                
+                // Parse markdown
+                let parsedHTML = marked.parse(processedText.trim());
+                
+                // Restore math blocks
+                mathBlocks.forEach(item => {
+                    parsedHTML = parsedHTML.replace(item.placeholder, item.math);
+                });
+                
+                el.innerHTML = parsedHTML;
+                el.dataset.parsed = 'true';
+            }
+            
+            if (isKatexReady && el.dataset.mathRendered !== 'true') {
+                window.renderMathInElement(el, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+                el.dataset.mathRendered = 'true';
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderMarkdownAndMath);
+    } else {
+        renderMarkdownAndMath();
+    }
+    // Backup execution when all deferred resources (like KaTeX auto-render) are fully loaded
+    window.addEventListener('load', renderMarkdownAndMath);
 </script>
 {% endblock %}

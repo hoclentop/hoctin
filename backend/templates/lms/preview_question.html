@@ -41,6 +41,15 @@
             const targetEl = document.getElementById('rendered-question-content');
             if (targetEl) {
                 targetEl.innerHTML = marked.parse(rawContent);
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(targetEl, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false
+                    });
+                }
             }
             
             // Render equivalent questions
@@ -49,6 +58,15 @@
             const targetEl{{ eq_q.id }} = document.getElementById('rendered-question-content-{{ eq_q.id }}');
             if (targetEl{{ eq_q.id }}) {
                 targetEl{{ eq_q.id }}.innerHTML = marked.parse(rawContent{{ eq_q.id }});
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(targetEl{{ eq_q.id }}, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false
+                    });
+                }
             }
             {% endfor %}
 
@@ -56,17 +74,16 @@
             document.querySelectorAll('.markdown-content').forEach(el => {
                 const rawText = el.textContent || el.innerText || '';
                 el.innerHTML = marked.parse(rawText.trim());
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(el, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false
+                    });
+                }
             });
-
-            if (window.renderMathInElement) {
-                window.renderMathInElement(document.getElementById('question-detail-container'), {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false}
-                    ],
-                    throwOnError: false
-                });
-            }
         });
      "
      id="question-detail-container">

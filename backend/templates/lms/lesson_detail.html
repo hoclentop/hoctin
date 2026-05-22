@@ -311,17 +311,16 @@ document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('.markdown-content').forEach(el => {
         const rawText = el.textContent || el.innerText || '';
         el.innerHTML = marked.parse(rawText.trim());
+        if (window.renderMathInElement) {
+            window.renderMathInElement(el, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError: false
+            });
+        }
     });
-    
-    if (window.renderMathInElement) {
-        window.renderMathInElement(document.body, {
-            delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false}
-            ],
-            throwOnError: false
-        });
-    }
     
     // 2. Youtube embed converter
     function getYoutubeEmbedUrl(url) {

@@ -3,6 +3,8 @@
 {% block title %}Đang thi: {{ test.title }}{% endblock %}
 
 {% block extra_head %}
+<!-- Marked for Markdown Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
     .sticky-timer { position: sticky; top: 1rem; z-index: 40; }
     .question-nav-btn { width: 40px; height: 40px; }
@@ -11,6 +13,89 @@
 {% endblock %}
 
 {% block content %}
+<script>
+function examHandler() {
+    return {
+        timeLeft: parseInt("{{ test.duration|default:60 }}") * 60, 
+        answeredQuestions: [
+            {% for p_data in parts %}
+                {% for q_data in p_data.questions %}
+                    {% if q_data.answer %}
+                        "{{ q_data.tq.id }}",
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        ], 
+        optionalState: {
+            {% for p_data in parts %}
+                {% for q_data in p_data.questions %}
+                    {% if q_data.answer and q_data.tq.optional_type != 'NONE' %}
+                        "{{ p_data.part.id }}": "{{ q_data.tq.optional_type }}",
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        }, 
+        showSubmitModal: false,
+        
+        init() {
+            setInterval(() => {
+                if (this.timeLeft > 0) this.timeLeft--;
+                else this.autoSubmit();
+            }, 1000);
+            
+            // Sync markdown and math rendering after Alpine has initialized and mounted the DOM
+            this.$nextTick(() => {
+                if (window.renderMarkdownAndMath) {
+                    window.renderMarkdownAndMath();
+                }
+            });
+        },
+        
+        formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return [h, m, s].map(v => v < 10 ? "0" + v : v).filter((v, i) => v !== "00" || i > 0).join(":");
+        },
+        
+        markAnswered(qId, partId, optType) {
+            if (!this.answeredQuestions.includes(qId)) {
+                this.answeredQuestions.push(qId);
+            }
+            if (optType !== 'NONE' && !this.optionalState[partId]) {
+                this.optionalState[partId] = optType;
+            }
+        },
+        
+        isAnswered(qId) {
+            return this.answeredQuestions.includes(qId);
+        },
+        
+        isGroupDisabled(partId, optType) {
+            if (optType === 'NONE') return false;
+            const currentOpt = this.optionalState[partId];
+            return currentOpt && currentOpt !== optType;
+        },
+        
+        scrollToQuestion(id) {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        },
+        
+        confirmSubmit() {
+            if (confirm("Bạn có chắc chắn muốn nộp bài?")) {
+                document.getElementById('examForm').submit();
+            }
+        },
+        
+        autoSubmit() {
+            alert("Hết thời gian làm bài! Hệ thống sẽ tự động nộp.");
+            document.getElementById('examForm').submit();
+        }
+    }
+}
+</script>
+
 <div x-data="examHandler()" 
      @keydown.escape.window="showSubmitModal = false"
      class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -196,107 +281,91 @@
 
 {% block extra_js %}
 <script>
-function examHandler() {
-    return {
-        timeLeft: parseInt("{{ test.duration|default:60 }}") * 60, 
-        answeredQuestions: [
-            {% for p_data in parts %}
-                {% for q_data in p_data.questions %}
-                    {% if q_data.answer %}
-                        "{{ q_data.tq.id }}",
-                    {% endif %}
-                {% endfor %}
-            {% endfor %}
-        ], 
-        optionalState: {
-            {% for p_data in parts %}
-                {% for q_data in p_data.questions %}
-                    {% if q_data.answer and q_data.tq.optional_type != 'NONE' %}
-                        "{{ p_data.part.id }}": "{{ q_data.tq.optional_type }}",
-                    {% endif %}
-                {% endfor %}
-            {% endfor %}
-        }, 
-        showSubmitModal: false,
-        
-        init() {
-            setInterval(() => {
-                if (this.timeLeft > 0) this.timeLeft--;
-                else this.autoSubmit();
-            }, 1000);
-        },
-        
-        formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            return [h, m, s].map(v => v < 10 ? "0" + v : v).filter((v, i) => v !== "00" || i > 0).join(":");
-        },
-        
-        markAnswered(qId, partId, optType) {
-            if (!this.answeredQuestions.includes(qId)) {
-                this.answeredQuestions.push(qId);
-            }
-            if (optType !== 'NONE' && !this.optionalState[partId]) {
-                this.optionalState[partId] = optType;
-            }
-        },
-        
-        isAnswered(qId) {
-            return this.answeredQuestions.includes(qId);
-        },
-        
-        isGroupDisabled(partId, optType) {
-            if (optType === 'NONE') return false;
-            const currentOpt = this.optionalState[partId];
-            return currentOpt && currentOpt !== optType;
-        },
-        
-        scrollToQuestion(id) {
-            const el = document.getElementById(id);
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        },
-        
-        confirmSubmit() {
-            if (confirm("Bạn có chắc chắn muốn nộp bài?")) {
-                document.getElementById('examForm').submit();
-            }
-        },
-        
-        autoSubmit() {
-            alert("Hết thời gian làm bài! Hệ thống sẽ tự động nộp.");
-            document.getElementById('examForm').submit();
-        }
-    }
-}
-</script>
-
-<!-- Load Marked and render markdown dynamically -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script>
     if (window.marked) {
         marked.use({
             renderer: {
-                html(html) {
-                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                html(token) {
+                    const text = (typeof token === 'string') ? token : (token.raw || token.text || '');
+                    return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 }
             }
         });
     }
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.markdown-content').forEach(el => {
-            const rawText = el.textContent || el.innerText || '';
-            el.innerHTML = marked.parse(rawText.trim());
-        });
-        if (window.renderMathInElement) {
-            window.renderMathInElement(document.body, {
-                delimiters: [
-                    {left: '$$', right: '$$', display: true},
-                    {left: '$', right: '$', display: false}
-                ],
-                throwOnError: false
-            });
+
+    function renderMarkdownAndMath() {
+        if (!window.marked) {
+            console.warn("marked library is not loaded yet.");
+            return;
         }
-    });
+        
+        const isKatexReady = typeof window.renderMathInElement === 'function';
+        
+        document.querySelectorAll('.markdown-content').forEach(el => {
+            // Only skip if both Markdown has been parsed AND KaTeX math is loaded/rendered
+            if (el.dataset.parsed === 'true' && (el.dataset.mathRendered === 'true' || !isKatexReady)) {
+                return;
+            }
+            
+            if (el.dataset.parsed !== 'true') {
+                const rawText = el.textContent || el.innerText || '';
+                // Safely escape < and > before parsing markdown
+                const escapedText = rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                
+                // Extract math blocks to placeholders to prevent backslash stripping by marked
+                const mathBlocks = [];
+                let placeholderIndex = 0;
+                let processedText = escapedText;
+                
+                // Block math $$
+                processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
+                    const placeholder = `__BLOCK_MATH_PLACEHOLDER_${placeholderIndex}__`;
+                    mathBlocks.push({ placeholder, math: `$$${math}$$` });
+                    placeholderIndex++;
+                    return placeholder;
+                });
+                
+                // Inline math $
+                processedText = processedText.replace(/\$([^\$\n]+?)\$/g, (match, math) => {
+                    const placeholder = `__INLINE_MATH_PLACEHOLDER_${placeholderIndex}__`;
+                    mathBlocks.push({ placeholder, math: `$${math}$` });
+                    placeholderIndex++;
+                    return placeholder;
+                });
+                
+                // Parse markdown
+                let parsedHTML = marked.parse(processedText.trim());
+                
+                // Restore math blocks
+                mathBlocks.forEach(item => {
+                    parsedHTML = parsedHTML.replace(item.placeholder, item.math);
+                });
+                
+                el.innerHTML = parsedHTML;
+                el.dataset.parsed = 'true';
+            }
+            
+            if (isKatexReady && el.dataset.mathRendered !== 'true') {
+                window.renderMathInElement(el, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+                el.dataset.mathRendered = 'true';
+            }
+        });
+    }
+
+    // Attach globally so it can be called from within Alpine's init()
+    window.renderMarkdownAndMath = renderMarkdownAndMath;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderMarkdownAndMath);
+    } else {
+        renderMarkdownAndMath();
+    }
+    // Backup execution when all deferred resources (like KaTeX auto-render) are fully loaded
+    window.addEventListener('load', renderMarkdownAndMath);
 </script>
 {% endblock %}

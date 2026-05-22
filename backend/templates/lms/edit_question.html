@@ -9,8 +9,9 @@
     if (window.marked) {
         marked.use({
             renderer: {
-                html(html) {
-                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                html(token) {
+                    const text = (typeof token === 'string') ? token : (token.raw || token.text || '');
+                    return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 }
             }
         });
@@ -496,7 +497,7 @@
                                 <div class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white/50 transition-all hover:bg-white">
                                     <span class="w-6 h-6 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center text-xs font-bold text-gray-500"
                                           x-text="String.fromCharCode(65 + idx)"></span>
-                                    <div class="flex-1 text-gray-700 text-sm font-medium" x-html="choice.text || '...' "></div>
+                                    <div class="flex-1 text-gray-700 text-sm font-medium" x-html="marked.parse(choice.text || '...')"></div>
                                     <span x-show="correct_choice_1 === idx" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Đáp án</span>
                                 </div>
                             </template>
@@ -508,7 +509,7 @@
                                 <div class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white/50 transition-all hover:bg-white">
                                     <span class="w-6 h-6 rounded-md bg-gray-100 border border-gray-300 flex items-center justify-center text-xs font-bold text-gray-500"
                                           x-text="idx + 1"></span>
-                                    <div class="flex-1 text-gray-700 text-sm font-medium" x-html="choice.text || '...' "></div>
+                                    <div class="flex-1 text-gray-700 text-sm font-medium" x-html="marked.parse(choice.text || '...')"></div>
                                     <span x-show="choice.is_correct" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Đúng</span>
                                 </div>
                             </template>
@@ -524,7 +525,7 @@
                                               :class="choice.is_correct ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'"
                                               x-text="choice.is_correct ? 'ĐÚNG' : 'SAI'"></span>
                                     </div>
-                                    <div class="text-gray-700 text-sm font-medium mt-1" x-html="choice.text || '...' "></div>
+                                    <div class="text-gray-700 text-sm font-medium mt-1" x-html="marked.parse(choice.text || '...')"></div>
                                 </div>
                             </template>
                         </div>
