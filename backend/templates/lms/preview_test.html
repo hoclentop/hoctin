@@ -187,13 +187,11 @@
             
             if (el.dataset.parsed !== 'true') {
                 const rawText = el.textContent || el.innerText || '';
-                // Safely escape < and > before parsing markdown
-                const escapedText = rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 
                 // Extract math blocks to placeholders to prevent backslash stripping by marked
                 const mathBlocks = [];
                 let placeholderIndex = 0;
-                let processedText = escapedText;
+                let processedText = rawText;
                 
                 // Block math $$
                 processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {

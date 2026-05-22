@@ -164,7 +164,7 @@
      id="question-detail-container">
 
     <!-- Raw Question Content for safe rendering -->
-    <script id="raw-question-content-data" type="text/plain" style="display:none;">{{ question.content }}</script>
+    <script id="raw-question-content-data" type="text/plain" style="display:none;">{{ question.content|safe }}</script>
 
     <!-- Back Navigation -->
     <div class="mb-6 flex items-center justify-between">

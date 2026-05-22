@@ -89,11 +89,11 @@
      id="question-detail-container">
 
     <!-- Raw Question Content for Main Question -->
-    <script id="raw-question-content-data" type="text/plain" style="display:none;">{{ question.content }}</script>
+    <script id="raw-question-content-data" type="text/plain" style="display:none;">{{ question.content|safe }}</script>
 
     <!-- Raw Question Content for Equivalent Questions -->
     {% for eq_q in equivalent_questions %}
-    <script id="raw-question-content-{{ eq_q.id }}" type="text/plain" style="display:none;">{{ eq_q.content }}</script>
+    <script id="raw-question-content-{{ eq_q.id }}" type="text/plain" style="display:none;">{{ eq_q.content|safe }}</script>
     {% endfor %}
 
     <!-- Header Actions -->
