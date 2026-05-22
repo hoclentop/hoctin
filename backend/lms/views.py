@@ -71,33 +71,53 @@ def course_list(request):
     random_tests = Test.objects.filter(test_type='STANDALONE').order_by('?')[:3]
     
     # 3. Lấy Nhật ký Hoạt động học tập thời gian thực
-    # Lấy 5 tiến độ hoàn thành bài học gần nhất
-    recent_progress = LessonProgress.objects.filter(
+    # Lấy 30 tiến độ hoàn thành bài học gần nhất để lọc bỏ học thử của GV/admin
+    recent_progress_raw = LessonProgress.objects.filter(
         is_completed=True
-    ).select_related('user', 'lesson', 'lesson__course').order_by('-completed_at')[:5]
+    ).select_related('user', 'lesson', 'lesson__course').order_by('-completed_at')[:30]
     
-    # Lấy 5 lượt làm bài thi gần nhất
-    recent_attempts = Attempt.objects.select_related('user', 'test').order_by('-start_time')[:5]
+    # Lấy 30 lượt làm bài thi gần nhất để lọc bỏ làm thử của GV/admin
+    recent_attempts_raw = Attempt.objects.select_related('user', 'test', 'test__creator').order_by('-start_time')[:30]
     
     activities = []
-    for p in recent_progress:
-        activities.append({
-            'user': p.user,
-            'type': 'lesson',
-            'lesson': p.lesson,
-            'course': p.lesson.course,
-            'timestamp': p.completed_at or timezone.now(),
-        })
+    for p in recent_progress_raw:
+        # Lọc bỏ học thử của giáo viên tạo bài hoặc admin
+        is_trial = (
+            p.user.is_superuser or 
+            p.user.is_staff or 
+            (p.lesson.course.creator == p.user)
+        )
+        if not is_trial:
+            activities.append({
+                'user': p.user,
+                'type': 'lesson',
+                'lesson': p.lesson,
+                'course': p.lesson.course,
+                'timestamp': p.completed_at or timezone.now(),
+            })
         
-    for a in recent_attempts:
-        activities.append({
-            'user': a.user,
-            'type': 'attempt',
-            'test': a.test,
-            'score': a.total_score,
-            'is_completed': a.end_time is not None,
-            'timestamp': a.start_time,
-        })
+    for a in recent_attempts_raw:
+        # Lọc bỏ làm thử đề thi của giáo viên tạo đề/khóa học hoặc admin
+        is_trial = (
+            a.user.is_superuser or 
+            a.user.is_staff or 
+            (a.test.creator == a.user)
+        )
+        if not is_trial:
+            # Check if user is the creator of any course linked to this test
+            from .models import Lesson
+            if Lesson.objects.filter(test=a.test, course__creator=a.user).exists():
+                is_trial = True
+                
+        if not is_trial:
+            activities.append({
+                'user': a.user,
+                'type': 'attempt',
+                'test': a.test,
+                'score': a.total_score,
+                'is_completed': a.end_time is not None,
+                'timestamp': a.start_time,
+            })
         
     # Gộp và sắp xếp theo timestamp giảm dần (mới nhất lên đầu)
     activities.sort(key=lambda x: x['timestamp'] if isinstance(x['timestamp'], datetime.datetime) else timezone.now(), reverse=True)
@@ -536,11 +556,14 @@ def complete_lesson_ajax(request, lesson_id):
     if not CourseOwnership.has_active_ownership(request.user, lesson.course):
         return JsonResponse({'success': False, 'message': 'Không có quyền truy cập hoặc khóa học đã hết hạn.'}, status=403)
         
-    progress, created = LessonProgress.objects.update_or_create(
-        user=request.user,
-        lesson=lesson,
-        defaults={'is_completed': True, 'completed_at': timezone.now()}
-    )
+    # Giáo viên tạo bài (hay admin) học thử không ghi vào nhật ký học tập (không tạo LessonProgress)
+    is_trial_user = request.user.is_superuser or request.user.is_staff or lesson.course.creator == request.user
+    if not is_trial_user:
+        progress, created = LessonProgress.objects.update_or_create(
+            user=request.user,
+            lesson=lesson,
+            defaults={'is_completed': True, 'completed_at': timezone.now()}
+        )
     
     # Find next lesson
     next_lesson = lesson.course.lessons.filter(order_index__gt=lesson.order_index).order_by('order_index').first()
@@ -595,11 +618,13 @@ def sync_lesson_progress_ajax(request, lesson_id):
                 success = JudgeSyncService.sync_codeforces(profile.codeforces_username, lesson.external_problem_code)
             
     if success:
-        LessonProgress.objects.update_or_create(
-            user=request.user,
-            lesson=lesson,
-            defaults={'is_completed': True, 'completed_at': timezone.now()}
-        )
+        is_trial_user = request.user.is_superuser or request.user.is_staff or lesson.course.creator == request.user
+        if not is_trial_user:
+            LessonProgress.objects.update_or_create(
+                user=request.user,
+                lesson=lesson,
+                defaults={'is_completed': True, 'completed_at': timezone.now()}
+            )
         message = "Đồng bộ thành công! Bài học đã được hoàn thành."
         
     next_lesson = lesson.course.lessons.filter(order_index__gt=lesson.order_index).order_by('order_index').first()
@@ -1160,26 +1185,28 @@ def submit_test(request, attempt_id):
         # Chấm điểm
         ScoringService.calculate_attempt_score(attempt)
         
-        # Tự động hoàn thành bài kiểm tra liên kết trong khóa học
+        # Tự động hoàn thành bài kiểm tra liên kết trong khóa học (bỏ qua nếu giáo viên tạo bài hoặc admin làm thử)
         associated_lessons = Lesson.objects.filter(lesson_type='TEST', test=attempt.test)
         for lesson in associated_lessons:
-            # Nếu là khóa học tuần tự, yêu cầu học sinh làm đúng 100% điểm bài thi mới được hoàn thành
-            if lesson.course.learning_mode == 'SEQUENTIAL':
-                max_score = lesson.test.total_possible_points
-                is_perfect = attempt.total_score >= (max_score - 1e-5)
-                if is_perfect:
+            is_trial_user = request.user.is_superuser or request.user.is_staff or lesson.course.creator == request.user
+            if not is_trial_user:
+                # Nếu là khóa học tuần tự, yêu cầu học sinh làm đúng 100% điểm bài thi mới được hoàn thành
+                if lesson.course.learning_mode == 'SEQUENTIAL':
+                    max_score = lesson.test.total_possible_points
+                    is_perfect = attempt.total_score >= (max_score - 1e-5)
+                    if is_perfect:
+                        LessonProgress.objects.update_or_create(
+                            user=request.user,
+                            lesson=lesson,
+                            defaults={'is_completed': True, 'completed_at': timezone.now()}
+                        )
+                else:
+                    # Với khóa học tự do, chỉ cần nộp bài là hoàn thành
                     LessonProgress.objects.update_or_create(
                         user=request.user,
                         lesson=lesson,
                         defaults={'is_completed': True, 'completed_at': timezone.now()}
                     )
-            else:
-                # Với khóa học tự do, chỉ cần nộp bài là hoàn thành
-                LessonProgress.objects.update_or_create(
-                    user=request.user,
-                    lesson=lesson,
-                    defaults={'is_completed': True, 'completed_at': timezone.now()}
-                )
             
         messages.success(request, "Nộp bài thành công!")
         lesson_id = request.GET.get('lesson_id')
@@ -1409,6 +1436,23 @@ def leaderboard(request, test_id):
     if mode == 'official':
         # Chỉ lấy các lượt thi chính thức
         attempts = attempts.filter(is_official=True)
+        
+    # Lọc bỏ các lượt làm thử của admin/giáo viên tạo đề/khóa học liên kết khỏi bảng xếp hạng
+    filtered_attempts = []
+    for attempt in attempts:
+        is_trial = (
+            attempt.user.is_superuser 
+            or attempt.user.is_staff 
+            or attempt.test.creator == attempt.user
+        )
+        if not is_trial:
+            from .models import Lesson
+            if Lesson.objects.filter(test=attempt.test, course__creator=attempt.user).exists():
+                is_trial = True
+        if not is_trial:
+            filtered_attempts.append(attempt)
+            
+    attempts = filtered_attempts
     
     # Lọc lượt làm bài tốt nhất của mỗi học sinh theo 3 tiêu chí xếp hạng:
     # 1. Điểm cao nhất

@@ -405,6 +405,101 @@ class CourseAndLessonTestCase(TestCase):
         is_completed = LessonProgress.objects.filter(user=self.student, lesson=test_lesson, is_completed=True).exists()
         self.assertTrue(is_completed)
 
+    def test_trial_user_lesson_completion_exclusion(self):
+        from django.urls import reverse
+        from lms.models import LessonProgress
+        
+        # Scenario A: Course Creator tries to complete a lesson
+        self.client.login(username='thnam', password='password123')
+        
+        response = self.client.post(reverse('complete_lesson_ajax', args=[self.lesson1.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify the lesson progress is NOT completed (no record created)
+        is_completed = LessonProgress.objects.filter(user=self.teacher, lesson=self.lesson1).exists()
+        self.assertFalse(is_completed)
+        
+        # Scenario B: Admin tries to complete a lesson
+        self.client.login(username='admin', password='adminpassword')
+        
+        response = self.client.post(reverse('complete_lesson_ajax', args=[self.lesson1.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        is_completed = LessonProgress.objects.filter(user=self.admin, lesson=self.lesson1).exists()
+        self.assertFalse(is_completed)
+
+    def test_trial_user_activities_and_leaderboard_exclusion(self):
+        from django.urls import reverse
+        from lms.models import Test, Attempt, LessonProgress
+        
+        # Create a test
+        test_obj = Test.objects.create(
+            title='Trial Test Activity',
+            price=0.0,
+            duration=30,
+            creator=self.teacher
+        )
+        
+        # Student attempt
+        Attempt.objects.create(
+            user=self.student,
+            test=test_obj,
+            start_time=timezone.now(),
+            end_time=timezone.now(),
+            total_score=10.0,
+            is_official=True
+        )
+        
+        # Teacher (creator) attempt
+        Attempt.objects.create(
+            user=self.teacher,
+            test=test_obj,
+            start_time=timezone.now(),
+            end_time=timezone.now(),
+            total_score=10.0,
+            is_official=True
+        )
+        
+        # Admin attempt
+        Attempt.objects.create(
+            user=self.admin,
+            test=test_obj,
+            start_time=timezone.now(),
+            end_time=timezone.now(),
+            total_score=10.0,
+            is_official=True
+        )
+        
+        # Create lesson completion for student
+        LessonProgress.objects.create(
+            user=self.student,
+            lesson=self.lesson1,
+            is_completed=True,
+            completed_at=timezone.now()
+        )
+        
+        # Fetch course list homepage
+        response = self.client.get(reverse('course_list'))
+        self.assertEqual(response.status_code, 200)
+        
+        activities = response.context['activities']
+        # The timeline should contain the student's activities but NOT teacher's or admin's
+        active_usernames = [act['user'].username for act in activities]
+        self.assertIn('student1', active_usernames)
+        self.assertNotIn('thnam', active_usernames)
+        self.assertNotIn('admin', active_usernames)
+        
+        # Fetch leaderboard
+        self.client.login(username='student1', password='password123')
+        response = self.client.get(reverse('leaderboard', args=[test_obj.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        leaderboard_list = response.context['leaderboard']
+        leaderboard_usernames = [attempt.user.username for attempt in leaderboard_list]
+        self.assertIn('student1', leaderboard_usernames)
+        self.assertNotIn('thnam', leaderboard_usernames)
+        self.assertNotIn('admin', leaderboard_usernames)
+
 class ProfileTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='tester', password='password123')
