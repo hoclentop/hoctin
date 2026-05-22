@@ -318,7 +318,7 @@ function examHandler() {
                 
                 // Block math $$
                 processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
-                    const placeholder = `__BLOCK_MATH_PLACEHOLDER_${placeholderIndex}__`;
+                    const placeholder = `MATHBLOCKPLACEHOLDER${placeholderIndex}`;
                     mathBlocks.push({ placeholder, math: `$$${math}$$` });
                     placeholderIndex++;
                     return placeholder;
@@ -326,7 +326,7 @@ function examHandler() {
                 
                 // Inline math $
                 processedText = processedText.replace(/\$([^\$\n]+?)\$/g, (match, math) => {
-                    const placeholder = `__INLINE_MATH_PLACEHOLDER_${placeholderIndex}__`;
+                    const placeholder = `MATHINLINEPLACEHOLDER${placeholderIndex}`;
                     mathBlocks.push({ placeholder, math: `$${math}$` });
                     placeholderIndex++;
                     return placeholder;
