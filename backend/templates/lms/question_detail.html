@@ -5,6 +5,17 @@
 {% block extra_head %}
 <!-- Marked for Markdown Parsing -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    if (window.marked) {
+        marked.use({
+            renderer: {
+                html(html) {
+                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+            }
+        });
+    }
+</script>
 <style>
     .glass-card {
         background: rgba(255, 255, 255, 0.85);
@@ -124,6 +135,13 @@
             if (targetEl) {
                 targetEl.innerHTML = marked.parse(rawContent);
             }
+
+            // Render markdown content in choices
+            document.querySelectorAll('.markdown-content').forEach(el => {
+                const rawText = el.textContent || el.innerText || '';
+                el.innerHTML = marked.parse(rawText.trim());
+            });
+
             if (window.renderMathInElement) {
                 window.renderMathInElement(document.getElementById('question-detail-container'), {
                     delimiters: [
@@ -282,7 +300,7 @@
                                           ]">
                                         {% if forloop.counter == 1 %}A{% elif forloop.counter == 2 %}B{% elif forloop.counter == 3 %}C{% elif forloop.counter == 4 %}D{% elif forloop.counter == 5 %}E{% elif forloop.counter == 6 %}F{% else %}{{ forloop.counter }}{% endif %}
                                     </span>
-                                    <div class="text-gray-800 text-sm font-semibold">{{ choice.content }}</div>
+                                    <div class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</div>
                                 </div>
                                 <input type="radio" name="choice" value="{{ choice.id }}"
                                        x-model="selectedChoiceId"
@@ -321,7 +339,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                                         </svg>
                                     </div>
-                                    <div class="text-gray-800 text-sm font-semibold">{{ choice.content }}</div>
+                                    <div class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</div>
                                 </div>
                             </div>
                         {% endfor %}
@@ -343,7 +361,7 @@
                                     <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-150 text-gray-500">
                                         {{ forloop.counter }}
                                     </span>
-                                    <div class="text-gray-800 text-sm font-semibold">{{ choice.content }}</div>
+                                    <div class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</div>
                                 </div>
 
                                 <!-- Toggle Option Buttons -->

@@ -5,6 +5,17 @@
 {% block extra_head %}
 <!-- Marked for Markdown Parsing -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    if (window.marked) {
+        marked.use({
+            renderer: {
+                html(html) {
+                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+            }
+        });
+    }
+</script>
 <style>
     .glass-card {
         background: rgba(255, 255, 255, 0.85);
@@ -40,6 +51,12 @@
                 targetEl{{ eq_q.id }}.innerHTML = marked.parse(rawContent{{ eq_q.id }});
             }
             {% endfor %}
+
+            // Render markdown content in choices
+            document.querySelectorAll('.markdown-content').forEach(el => {
+                const rawText = el.textContent || el.innerText || '';
+                el.innerHTML = marked.parse(rawText.trim());
+            });
 
             if (window.renderMathInElement) {
                 window.renderMathInElement(document.getElementById('question-detail-container'), {
@@ -160,7 +177,7 @@
                                         <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold {% if choice.is_correct %}bg-emerald-500 text-white{% else %}bg-gray-100 text-gray-500{% endif %}">
                                             {{ forloop.counter }}
                                         </span>
-                                        <span class="text-gray-800 text-sm font-semibold">{{ choice.content }}</span>
+                                        <span class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</span>
                                     </div>
                                     {% if choice.is_correct %}
                                         <span class="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
@@ -184,7 +201,7 @@
                                         <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-500">
                                             {{ forloop.counter }}
                                         </span>
-                                        <div class="text-gray-800 text-sm font-semibold">{{ choice.content }}</div>
+                                        <div class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</div>
                                     </div>
                                     <span class="px-3.5 py-1 rounded-lg text-xs font-extrabold shadow-sm {% if choice.is_correct %}bg-emerald-500 border border-emerald-600 text-white{% else %}bg-rose-500 border border-rose-600 text-white{% endif %}">
                                         {{ choice.is_correct|yesno:'ĐÚNG,SAI' }}
@@ -268,7 +285,7 @@
                                                 <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold {% if choice.is_correct %}bg-emerald-500 text-white{% else %}bg-gray-100 text-gray-500{% endif %}">
                                                     {{ forloop.counter }}
                                                 </span>
-                                                <span class="text-gray-800 text-sm font-semibold">{{ choice.content }}</span>
+                                                <span class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</span>
                                             </div>
                                             {% if choice.is_correct %}
                                                 <span class="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
@@ -292,7 +309,7 @@
                                                 <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-500">
                                                     {{ forloop.counter }}
                                                 </span>
-                                                <div class="text-gray-800 text-sm font-semibold">{{ choice.content }}</div>
+                                                <div class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</div>
                                             </div>
                                             <span class="px-3.5 py-1 rounded-lg text-xs font-extrabold shadow-sm {% if choice.is_correct %}bg-emerald-500 border border-emerald-600 text-white{% else %}bg-rose-500 border border-rose-600 text-white{% endif %}">
                                                 {{ choice.is_correct|yesno:'ĐÚNG,SAI' }}

@@ -274,6 +274,15 @@ function examHandler() {
 <!-- Load Marked and render markdown dynamically -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+    if (window.marked) {
+        marked.use({
+            renderer: {
+                html(html) {
+                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+            }
+        });
+    }
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.markdown-content').forEach(el => {
             const rawText = el.textContent || el.innerText || '';

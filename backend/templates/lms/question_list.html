@@ -5,6 +5,17 @@
 {% block extra_head %}
 <!-- Marked for Markdown Parsing -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    if (window.marked) {
+        marked.use({
+            renderer: {
+                html(html) {
+                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+            }
+        });
+    }
+</script>
 <style>
     .glass-card {
         background: rgba(255, 255, 255, 0.85);
@@ -57,6 +68,12 @@
 
         // Modal triggers
         openPreview(qData) {
+            if (qData && qData.choices) {
+                qData.choices = qData.choices.map(c => {
+                    c.text = marked.parse(c.text || '');
+                    return c;
+                });
+            }
             this.activeQuestion = qData;
             this.previewOpen = true;
             this.$nextTick(() => {

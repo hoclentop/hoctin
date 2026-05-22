@@ -297,6 +297,15 @@
 <!-- Scripts for Markdown Parsing and Video conversion -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+if (window.marked) {
+    marked.use({
+        renderer: {
+            html(html) {
+                return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+        }
+    });
+}
 document.addEventListener("DOMContentLoaded", function() {
     // 1. Render Markdown & LaTeX support
     document.querySelectorAll('.markdown-content').forEach(el => {

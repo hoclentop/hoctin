@@ -5,6 +5,17 @@
 {% block extra_head %}
 <!-- Marked for Markdown Parsing -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    if (window.marked) {
+        marked.use({
+            renderer: {
+                html(html) {
+                    return html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+            }
+        });
+    }
+</script>
 <!-- MathJax Support for math rendering -->
 <script>
     window.MathJax = {
