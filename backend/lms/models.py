@@ -205,7 +205,7 @@ class Choice(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='choices')
     content = models.TextField()
     is_correct = models.BooleanField(default=False)
-    position = models.IntegerField(default=0) # Dùng để sắp xếp trước khi đảo
+    position = models.IntegerField(default=1) # Dùng để sắp xếp trước khi đảo
     
     class Meta:
         ordering = ['position']

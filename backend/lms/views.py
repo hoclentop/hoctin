@@ -3551,7 +3551,7 @@ def save_import_ajax(request):
                         question=q_obj,
                         content=c_item['content'],
                         is_correct=c_item['is_correct'],
-                        position=idx
+                        position=1
                     )
                 saved_count += 1
                 
