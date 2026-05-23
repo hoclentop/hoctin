@@ -172,6 +172,20 @@ class DynamicTestTestCase(TestCase):
         # only 1 question should be selected in the end!
         self.assertEqual(len(questions_in_attempt), 1)
 
+    def test_bbcode_hide_and_xoa(self):
+        from lms.bbcode_parser import BBBienParser
+        parser = BBBienParser()
+        
+        # Test basic hide and xoa
+        text = "Hello [hide]World[/hide] and [xoa]Secret[/xoa]!"
+        parsed = parser.parse(text)
+        self.assertEqual(parsed, "Hello <span style=\"display:none;\">World</span> and !")
+        
+        # Test hide and xoa with nested content or multiple blocks
+        text_multiple = "[hide]Block 1[/hide] some text [xoa]Block 2[/xoa] other text [hide]Block 3[/hide]"
+        parsed_multiple = parser.parse(text_multiple)
+        self.assertEqual(parsed_multiple, "<span style=\"display:none;\">Block 1</span> some text  other text <span style=\"display:none;\">Block 3</span>")
+
 class CourseAndLessonTestCase(TestCase):
     def setUp(self):
         # Create users

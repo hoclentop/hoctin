@@ -214,7 +214,7 @@
                 
                 // Restore math blocks
                 mathBlocks.forEach(item => {
-                    parsedHTML = parsedHTML.replace(item.placeholder, item.math);
+                    parsedHTML = parsedHTML.replace(item.placeholder, () => item.math);
                 });
                 
                 el.innerHTML = parsedHTML;

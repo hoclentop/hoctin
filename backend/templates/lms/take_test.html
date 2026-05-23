@@ -16,7 +16,7 @@
 <script>
 function examHandler() {
     return {
-        timeLeft: parseInt("{{ test.duration|default:60 }}") * 60, 
+        timeLeft: parseInt("{{ time_left }}"), 
         answeredQuestions: [
             {% for p_data in parts %}
                 {% for q_data in p_data.questions %}
@@ -36,12 +36,25 @@ function examHandler() {
             {% endfor %}
         }, 
         showSubmitModal: false,
+
+        // Page Visibility and Anti-cheat tracking
+        leftPageCount: parseInt("{{ attempt.left_page_count|default:0 }}"),
+        leftPageTime: parseInt("{{ attempt.left_page_time|default:0 }}"),
+        awayStartTime: null,
         
         init() {
-            setInterval(() => {
-                if (this.timeLeft > 0) this.timeLeft--;
-                else this.autoSubmit();
-            }, 1000);
+            // Absolute wall-clock countdown timer (prevents throttling/pausing when tab is backgrounded)
+            const startTime = Date.now();
+            const initialTimeLeft = this.timeLeft;
+            
+            this.timerInterval = setInterval(() => {
+                const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+                this.timeLeft = Math.max(0, initialTimeLeft - elapsedSeconds);
+                if (this.timeLeft <= 0) {
+                    clearInterval(this.timerInterval);
+                    this.autoSubmit();
+                }
+            }, 500);
             
             // Sync markdown and math rendering after Alpine has initialized and mounted the DOM
             this.$nextTick(() => {
@@ -49,6 +62,63 @@ function examHandler() {
                     window.renderMarkdownAndMath();
                 }
             });
+
+            // Register anti-cheat visibility/focus/blur events
+            document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+            window.addEventListener('blur', () => this.handleAway());
+            window.addEventListener('focus', () => this.handleBack());
+        },
+
+        handleVisibilityChange() {
+            if (document.visibilityState === 'hidden') {
+                this.handleAway();
+            } else {
+                this.handleBack();
+            }
+        },
+
+        handleAway() {
+            if (this.awayStartTime === null) {
+                this.awayStartTime = Date.now();
+                this.leftPageCount++;
+                
+                // Update hidden inputs immediately
+                const countInput = document.getElementById('left-page-count-input');
+                if (countInput) countInput.value = this.leftPageCount;
+            }
+        },
+
+        handleBack() {
+            if (this.awayStartTime !== null) {
+                const elapsedAway = Math.round((Date.now() - this.awayStartTime) / 1000);
+                this.leftPageTime += elapsedAway;
+                this.awayStartTime = null;
+                
+                // Update hidden inputs immediately
+                const timeInput = document.getElementById('left-page-time-input');
+                if (timeInput) timeInput.value = this.leftPageTime;
+                
+                // Perform background AJAX sync to ensure stats are saved even if student reloads/closes browser
+                this.syncVisibilityStats();
+            }
+        },
+
+        async syncVisibilityStats() {
+            try {
+                await fetch("{% url 'update_attempt_visibility_ajax' attempt.id %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        left_page_count: this.leftPageCount,
+                        left_page_time: this.leftPageTime
+                    })
+                });
+            } catch (err) {
+                console.error("Cheating logs sync failed:", err);
+            }
         },
         
         formatTime(seconds) {
@@ -84,12 +154,32 @@ function examHandler() {
         
         confirmSubmit() {
             if (confirm("Bạn có chắc chắn muốn nộp bài?")) {
+                if (this.awayStartTime !== null) {
+                    const elapsedAway = Math.round((Date.now() - this.awayStartTime) / 1000);
+                    this.leftPageTime += elapsedAway;
+                    this.awayStartTime = null;
+                }
+                const countInput = document.getElementById('left-page-count-input');
+                const timeInput = document.getElementById('left-page-time-input');
+                if (countInput) countInput.value = this.leftPageCount;
+                if (timeInput) timeInput.value = this.leftPageTime;
+                
                 document.getElementById('examForm').submit();
             }
         },
         
         autoSubmit() {
             alert("Hết thời gian làm bài! Hệ thống sẽ tự động nộp.");
+            if (this.awayStartTime !== null) {
+                const elapsedAway = Math.round((Date.now() - this.awayStartTime) / 1000);
+                this.leftPageTime += elapsedAway;
+                this.awayStartTime = null;
+            }
+            const countInput = document.getElementById('left-page-count-input');
+            const timeInput = document.getElementById('left-page-time-input');
+            if (countInput) countInput.value = this.leftPageCount;
+            if (timeInput) timeInput.value = this.leftPageTime;
+            
             document.getElementById('examForm').submit();
         }
     }
@@ -102,6 +192,9 @@ function examHandler() {
     
     <form id="examForm" action="{% url 'submit_test' attempt.id %}{% if request.GET.lesson_id %}?lesson_id={{ request.GET.lesson_id }}{% endif %}" method="post">
         {% csrf_token %}
+        <!-- Hidden Inputs for Page Visibility Tracking -->
+        <input type="hidden" name="left_page_count" id="left-page-count-input" value="{{ attempt.left_page_count|default:0 }}">
+        <input type="hidden" name="left_page_time" id="left-page-time-input" value="{{ attempt.left_page_time|default:0 }}">
         
         <div class="lg:grid lg:grid-cols-12 lg:gap-8">
         <!-- Sidebar Navigation -->
@@ -335,7 +428,7 @@ function examHandler() {
                 
                 // Restore math blocks
                 mathBlocks.forEach(item => {
-                    parsedHTML = parsedHTML.replace(item.placeholder, item.math);
+                    parsedHTML = parsedHTML.replace(item.placeholder, () => item.math);
                 });
                 
                 el.innerHTML = parsedHTML;

@@ -73,6 +73,15 @@ class ScoringService:
             
         if not q:
             return 0
+
+        # Sinh hạt giống ngẫu nhiên từ attempt id và question id để đồng bộ hóa
+        from lms.bbcode_parser import BBBienParser
+        parser = BBBienParser(seed=answer.attempt.id * 100000 + q.id)
+        
+        # Lấy và phân tích đáp án trong bộ nhớ cho việc chấm điểm
+        choices = list(q.choices.all())
+        for c in choices:
+            c.content = parser.parse(c.content)
         
         if q.question_type == 1: # Single Choice
             selected = answer.selected_choices.first()
@@ -80,23 +89,16 @@ class ScoringService:
                 return max_points
                 
         elif q.question_type == 2: # Multiple Choice
-            correct_choices = set(q.choices.filter(is_correct=True).values_list('id', flat=True))
+            correct_choices = set(c.id for c in choices if c.is_correct)
             selected_choices = set(answer.selected_choices.values_list('id', flat=True))
             if correct_choices == selected_choices and correct_choices:
                 return max_points
                 
         elif q.question_type == 3: # Đúng/Sai 4 ý (Tiered Scoring)
-            # Giả sử selected_choices chứa các ý mà học viên chọn là "Đúng"
-            # Trong thực tế, loại 3 cần lưu vết cả Đúng/Sai cho từng ý. 
-            # Ở đây ta dùng is_correct_tf (JSON list) lưu index các ý đúng mà học viên chọn.
-            # k là số lượng ý trả lời chính xác (khớp với đáp án)
-            
             correct_count = 0
-            all_choices = list(q.choices.all()) # Giả sử có đúng 4 ý
+            all_choices = choices
             selected_ids = set(answer.selected_choices.values_list('id', flat=True))
             
-            # Lưu ý: Với loại 3, mỗi Choice đại diện cho 1 ý. 
-            # Học viên trả lời bằng cách tích chọn nếu ý đó Đúng, để trống nếu ý đó Sai.
             for choice in all_choices:
                 is_selected = choice.id in selected_ids
                 if is_selected == choice.is_correct:
@@ -115,7 +117,7 @@ class ScoringService:
             
         elif q.question_type == 4: # Short Answer
             user_val = answer.short_answer.strip()
-            correct_options = q.choices.all()
+            correct_options = choices
             for opt in correct_options:
                 u_val = user_val
                 target = opt.content.strip()

@@ -12,6 +12,7 @@ urlpatterns = [
     path('test/<int:test_id>/checkout/', views.test_checkout, name='test_checkout'),
     path('test/<int:test_id>/take/', views.take_test, name='take_test'),
     path('attempt/<int:attempt_id>/submit/', views.submit_test, name='submit_test'),
+    path('attempt/<int:attempt_id>/visibility/', views.update_attempt_visibility_ajax, name='update_attempt_visibility_ajax'),
     path('result/<int:attempt_id>/', views.test_result, name='test_result'),
     path('result/<int:attempt_id>/review/', views.review_attempt, name='review_attempt'),
     path('test/<int:test_id>/leaderboard/', views.leaderboard, name='leaderboard'),

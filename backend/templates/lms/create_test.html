@@ -63,6 +63,14 @@
                                placeholder="Ví dụ: Kiểm tra Giữa kỳ I - Tin học 11 - Khối A">
                     </div>
 
+                    <!-- Short Description -->
+                    <div>
+                        <label for="short_description" class="block text-sm font-semibold text-gray-700 mb-2">Mô tả ngắn về đề thi</label>
+                        <textarea id="short_description" name="short_description" rows="3"
+                                  class="w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4"
+                                  placeholder="Mô tả ngắn gọn về nội dung hoặc mục tiêu của đề thi (hiển thị ngoài danh sách)">{{ test.short_description }}</textarea>
+                    </div>
+
                     <!-- Test Type -->
                     <div>
                         <label for="test_type" class="block text-sm font-semibold text-gray-700 mb-2">Loại đề thi <span class="text-rose-500">*</span></label>

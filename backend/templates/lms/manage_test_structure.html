@@ -133,12 +133,8 @@
         addQuestionDirectly(qId, forceAdd = false) {
             this.isSaving = true;
             
-            // Tìm số thứ tự lớn nhất hiện tại
-            let maxOrder = 0;
-            this.questions.forEach(q => {
-                if (q.order_index > maxOrder) maxOrder = q.order_index;
-            });
-            let nextOrder = maxOrder + 1;
+            // Mặc định thứ tự câu hỏi khi thêm mới là 1
+            let nextOrder = 1;
 
             fetch(`/tests/${this.testId}/questions/add-ajax/`, {
                 method: 'POST',
@@ -173,7 +169,7 @@
                     points: data.points,
                     optional_type: 'NONE',
                     part_number: 1,
-                    order_index: nextOrder
+                    order_index: data.order_index || 1
                 });
                 // Sắp xếp lại danh sách
                 this.questions.sort((a, b) => a.order_index - b.order_index);
@@ -531,7 +527,8 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50/80">
                             <tr>
-                                <th class="px-2.5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 50px;">Mã</th>
+                                <th class="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 50px;">STT</th>
+                                <th class="px-2.5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 60px;">Mã</th>
                                 <th class="px-2.5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit">Câu hỏi (70 kí tự đầu)</th>
                                 <th class="px-2.5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 130px;">Thể loại</th>
                                 <th class="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider font-outfit" style="width: 70px;">Điểm số</th>
@@ -544,6 +541,9 @@
                         <tbody class="bg-white divide-y divide-gray-150">
                             <template x-for="(q, idx) in questions" :key="q.id">
                                 <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <!-- STT -->
+                                    <td class="px-2 py-2.5 whitespace-nowrap text-center text-xs font-bold text-slate-500 font-mono" x-text="idx + 1"></td>
+                                    
                                     <!-- Mã câu hỏi -->
                                     <td class="px-2.5 py-2.5 whitespace-nowrap text-xs font-bold text-slate-700 font-mono" x-text="q.question_id"></td>
                                     

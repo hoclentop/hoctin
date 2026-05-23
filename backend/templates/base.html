@@ -94,6 +94,48 @@
             margin-bottom: 0.25rem !important;
             line-height: 1.6 !important;
         }
+
+        /* Premium Markdown Table Styles */
+        .markdown-content table, 
+        .preview-content table, 
+        .question-body table, 
+        .question-content-preview table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-top: 1.5rem !important;
+            margin-bottom: 1.5rem !important;
+            font-size: 0.875rem !important;
+            border: 1px solid #e5e7eb !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+            border-radius: 0.75rem !important;
+            overflow: hidden !important;
+        }
+        .markdown-content th, 
+        .preview-content th, 
+        .question-body th, 
+        .question-content-preview th {
+            background-color: #f3f4f6 !important;
+            color: #1f2937 !important;
+            font-weight: 600 !important;
+            padding: 0.75rem 1rem !important;
+            border: 1px solid #e5e7eb !important;
+            text-align: left !important;
+        }
+        .markdown-content td, 
+        .preview-content td, 
+        .question-body td, 
+        .question-content-preview td {
+            padding: 0.75rem 1rem !important;
+            border: 1px solid #e5e7eb !important;
+            color: #4b5563 !important;
+            background-color: #ffffff !important;
+        }
+        .markdown-content tbody tr:nth-child(even) td, 
+        .preview-content tbody tr:nth-child(even) td, 
+        .question-body tbody tr:nth-child(even) td, 
+        .question-content-preview tbody tr:nth-child(even) td {
+            background-color: #f9fafb !important;
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>

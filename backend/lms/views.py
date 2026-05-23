@@ -944,12 +944,19 @@ def take_test(request, test_id):
                 part_number=q_info.get('part_number', 1)
             )
             
-            choice_map = {c.id: c for c in question.choices.all()}
+            from lms.bbcode_parser import BBBienParser
+            parser = BBBienParser(seed=attempt.id * 100000 + question.id)
+            question.content = parser.parse(question.content)
+            
+            all_choices = list(question.choices.all())
+            for c in all_choices:
+                c.content = parser.parse(c.content)
+            choice_map = {c.id: c for c in all_choices}
             current_choice_ids = set(choice_map.keys())
             shuffled_ids = q_info.get('choices', [])
             
             if not shuffled_ids or set(shuffled_ids) != current_choice_ids:
-                choices_list = list(question.choices.all())
+                choices_list = all_choices
                 pos_groups = {}
                 for c in choices_list:
                     pos_groups.setdefault(c.position, []).append(c.id)
@@ -1065,13 +1072,20 @@ def take_test(request, test_id):
             if not tq:
                 continue  # Bỏ qua câu hỏi đã bị giáo viên gỡ khỏi đề thi
                 
-            choice_map = {c.id: c for c in tq.question.choices.all()}
+            from lms.bbcode_parser import BBBienParser
+            parser = BBBienParser(seed=attempt.id * 100000 + tq.question.id)
+            tq.question.content = parser.parse(tq.question.content)
+            
+            all_choices = list(tq.question.choices.all())
+            for c in all_choices:
+                c.content = parser.parse(c.content)
+            choice_map = {c.id: c for c in all_choices}
             current_choice_ids = set(choice_map.keys())
             shuffled_ids = q_info.get('choices', [])
             
             # Nếu có sai lệch phương án (thêm/bớt đáp án hoặc rỗng), tiến hành trộn và đồng bộ lại
             if not shuffled_ids or set(shuffled_ids) != current_choice_ids:
-                choices_list = list(tq.question.choices.all())
+                choices_list = all_choices
                 pos_groups = {}
                 for c in choices_list:
                     pos_groups.setdefault(c.position, []).append(c.id)
@@ -1113,10 +1127,16 @@ def take_test(request, test_id):
             'questions': questions_by_part[part_num]
         })
 
+    # Calculate remaining time (seconds) based on start_time and test duration
+    elapsed = (timezone.now() - attempt.start_time).total_seconds()
+    duration_seconds = (test.duration or 60) * 60
+    time_left = max(0, int(duration_seconds - elapsed))
+
     return render(request, 'lms/take_test.html', {
         'test': test,
         'attempt': attempt,
         'parts': parts_to_render,
+        'time_left': time_left,
     })
 
 @login_required
@@ -1129,6 +1149,11 @@ def submit_test(request, attempt_id):
         return redirect('test_result', attempt_id=attempt.id)
     
     if request.method == 'POST':
+        # Cập nhật số lần và thời gian rời trang từ form gửi lên
+        attempt.left_page_count = int(request.POST.get('left_page_count', attempt.left_page_count))
+        attempt.left_page_time = int(request.POST.get('left_page_time', attempt.left_page_time))
+        attempt.save()
+
         if hasattr(attempt.test, 'dynamictest'):
             # Đối với đề thi động, các câu hỏi và thứ tự được lưu trong attempt.shuffled_data
             for part_key, q_list in attempt.shuffled_data.items():
@@ -1280,12 +1305,19 @@ def review_attempt(request, attempt_id):
                 part_number=q_info.get('part_number', 1)
             )
             
-            choice_map = {c.id: c for c in question.choices.all()}
+            from lms.bbcode_parser import BBBienParser
+            parser = BBBienParser(seed=attempt.id * 100000 + question.id)
+            question.content = parser.parse(question.content)
+            
+            all_choices = list(question.choices.all())
+            for c in all_choices:
+                c.content = parser.parse(c.content)
+            choice_map = {c.id: c for c in all_choices}
             current_choice_ids = set(choice_map.keys())
             shuffled_ids = q_info.get('choices', [])
             
             if not shuffled_ids or set(shuffled_ids) != current_choice_ids:
-                choices_list = list(question.choices.all())
+                choices_list = all_choices
                 pos_groups = {}
                 for c in choices_list:
                     pos_groups.setdefault(c.position, []).append(c.id)
@@ -1306,7 +1338,7 @@ def review_attempt(request, attempt_id):
                 'tq': tq,
                 'choices': ordered_choices,
                 'answer': ans,
-                'correct_choices': list(question.choices.all()) if question.question_type == 4 else question.choices.filter(is_correct=True)
+                'correct_choices': [choice_map[c.id] for c in all_choices] if question.question_type == 4 else [choice_map[c.id] for c in all_choices if c.is_correct]
             }
             
             part_num = tq.part_number
@@ -1371,13 +1403,20 @@ def review_attempt(request, attempt_id):
             if not tq:
                 continue  # Bỏ qua câu hỏi đã bị giáo viên gỡ khỏi đề thi
                 
-            choice_map = {c.id: c for c in tq.question.choices.all()}
+            from lms.bbcode_parser import BBBienParser
+            parser = BBBienParser(seed=attempt.id * 100000 + tq.question.id)
+            tq.question.content = parser.parse(tq.question.content)
+            
+            all_choices = list(tq.question.choices.all())
+            for c in all_choices:
+                c.content = parser.parse(c.content)
+            choice_map = {c.id: c for c in all_choices}
             current_choice_ids = set(choice_map.keys())
             shuffled_ids = q_info.get('choices', [])
             
             # Nếu có sai lệch phương án (thêm/bớt đáp án hoặc rỗng), tiến hành trộn và đồng bộ lại
             if not shuffled_ids or set(shuffled_ids) != current_choice_ids:
-                choices_list = list(tq.question.choices.all())
+                choices_list = all_choices
                 pos_groups = {}
                 for c in choices_list:
                     pos_groups.setdefault(c.position, []).append(c.id)
@@ -1400,7 +1439,7 @@ def review_attempt(request, attempt_id):
                 'tq': tq,
                 'choices': ordered_choices,
                 'answer': ans,
-                'correct_choices': list(tq.question.choices.all()) if tq.question.question_type == 4 else tq.question.choices.filter(is_correct=True)
+                'correct_choices': [choice_map[c.id] for c in all_choices] if tq.question.question_type == 4 else [choice_map[c.id] for c in all_choices if c.is_correct]
             }
             
             part_num = tq.part_number
@@ -2236,9 +2275,22 @@ def question_detail(request, pk):
             messages.error(request, "Câu hỏi này là nội bộ, bạn không có quyền xem.")
             return redirect('course_list')
 
+    import random
+    seed = random.randint(1, 10000000)
+    request.session[f'q_seed_{question.id}'] = seed
+
+    from lms.bbcode_parser import BBBienParser
+    parser = BBBienParser(seed=seed)
+    
+    question.content = parser.parse(question.content)
+    
+    choices = list(question.choices.all())
+    for c in choices:
+        c.content = parser.parse(c.content)
+
     return render(request, 'lms/question_detail.html', {
         'question': question,
-        'choices': question.choices.all(),
+        'choices': choices,
     })
 
 @login_required
@@ -2337,7 +2389,14 @@ def check_question_answer(request, pk):
     else:
         data = request.POST
 
-    choices = question.choices.all()
+    seed = request.session.get(f'q_seed_{question.id}', question.id)
+    from lms.bbcode_parser import BBBienParser
+    parser = BBBienParser(seed=seed)
+    
+    choices = list(question.choices.all())
+    for c in choices:
+        c.content = parser.parse(c.content)
+
     is_correct = False
     results = {}
     correct_answers = []
@@ -2347,12 +2406,14 @@ def check_question_answer(request, pk):
         selected_choice_id = data.get('choice_id')
         if selected_choice_id:
             try:
-                selected_choice = choices.get(id=int(selected_choice_id))
-                is_correct = selected_choice.is_correct
-            except (Choice.DoesNotExist, ValueError):
+                selected_choice = next((c for c in choices if c.id == int(selected_choice_id)), None)
+                if selected_choice:
+                    is_correct = selected_choice.is_correct
+            except ValueError:
                 is_correct = False
         
-        correct_choice = choices.filter(is_correct=True).first()
+        correct_choices = [c for c in choices if c.is_correct]
+        correct_choice = correct_choices[0] if correct_choices else None
         if correct_choice:
             correct_answers.append(correct_choice.content)
             
@@ -2366,11 +2427,12 @@ def check_question_answer(request, pk):
                 selected_choice_ids = [int(x) for x in selected_choice_ids.split(',') if x]
         
         selected_choice_ids = [int(cid) for cid in selected_choice_ids if cid]
-        correct_choice_ids = list(choices.filter(is_correct=True).values_list('id', flat=True))
+        correct_choice_ids = [c.id for c in choices if c.is_correct]
         is_correct = (set(selected_choice_ids) == set(correct_choice_ids))
         
-        for c in choices.filter(is_correct=True):
-            correct_answers.append(c.content)
+        for c in choices:
+            if c.is_correct:
+                correct_answers.append(c.content)
 
     # 3. Đúng/Sai độc lập
     elif question.question_type == 3:
@@ -2382,7 +2444,7 @@ def check_question_answer(request, pk):
                 user_selections = {}
                 
         correct_count = 0
-        total_choices = choices.count()
+        total_choices = len(choices)
         
         for c in choices:
             user_val = user_selections.get(str(c.id))
@@ -2509,6 +2571,7 @@ def duplicate_test(request, test_id):
     with transaction.atomic():
         new_test = Test.objects.create(
             title=f"[Bản sao] {original_test.title}",
+            short_description=original_test.short_description,
             price=original_test.price,
             duration=original_test.duration,
             allow_practice=original_test.allow_practice,
@@ -2551,6 +2614,7 @@ def create_test(request):
     
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
+        short_description = request.POST.get('short_description', '').strip()
         price = request.POST.get('price', '0')
         duration = request.POST.get('duration', '60')
         allow_practice = request.POST.get('allow_practice') == 'on'
@@ -2586,6 +2650,7 @@ def create_test(request):
         try:
             test = Test.objects.create(
                 title=title,
+                short_description=short_description,
                 price=float(price),
                 duration=int(duration),
                 allow_practice=allow_practice,
@@ -2617,6 +2682,7 @@ def edit_test_basic(request, test_id):
     
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
+        short_description = request.POST.get('short_description', '').strip()
         price = request.POST.get('price', '0')
         duration = request.POST.get('duration', '60')
         allow_practice = request.POST.get('allow_practice') == 'on'
@@ -2651,6 +2717,7 @@ def edit_test_basic(request, test_id):
             
         try:
             test.title = title
+            test.short_description = short_description
             test.price = float(price)
             test.duration = int(duration)
             test.allow_practice = allow_practice
@@ -2744,14 +2811,20 @@ def preview_test(request, test_id):
     
     questions_by_part = {}
     for tq in test_questions:
-        # Lấy các đáp án gốc (không đảo thứ tự - sắp xếp theo position hoặc id)
+        from lms.bbcode_parser import BBBienParser
+        parser = BBBienParser(seed=test.id * 100000 + tq.question.id)
+        
+        tq.question.content = parser.parse(tq.question.content)
+        
         choices = list(tq.question.choices.all().order_by('position', 'id'))
+        for c in choices:
+            c.content = parser.parse(c.content)
         
         # Xác định đáp án đúng để hiển thị nổi bật
         if tq.question.question_type == 4:
             correct_choices = choices
         else:
-            correct_choices = tq.question.choices.filter(is_correct=True)
+            correct_choices = [c for c in choices if c.is_correct]
         
         q_data = {
             'tq': tq,
@@ -2917,8 +2990,8 @@ def add_test_question_ajax(request, test_id):
             # (Giúp đồng bộ phần thi nếu chưa tồn tại lời dẫn)
             part_inst, _ = TestPartInstruction.objects.get_or_create(test=test, part_number=part_number)
             
-            max_idx = TestQuestion.objects.filter(test=test, part_number=part_number).aggregate(Max('order_index'))['order_index__max'] or 0
-            order_index = max_idx + 1
+            # Mặc định thứ tự của câu hỏi trong đề thi là 1, chứ không tăng dần
+            order_index = 1
             
             tq = TestQuestion.objects.create(
                 test=test,
@@ -3051,10 +3124,6 @@ def add_questions_quick_ajax(request, test_id):
                         'message': "Các câu hỏi sau có nhóm tương đương đã tồn tại trong đề thi:\n" + "\n".join(conflicts) + "\n\nBạn có chắc chắn muốn tiếp tục thêm các câu này không?"
                     })
             
-            # Tìm số thứ tự lớn nhất hiện có trong đề thi để đặt tiếp
-            existing_tqs = TestQuestion.objects.filter(test=test)
-            max_order = max([tq.order_index for tq in existing_tqs] + [0])
-            
             added_questions = []
             errors = []
             
@@ -3066,13 +3135,12 @@ def add_questions_quick_ajax(request, test_id):
                         errors.append(f"Mã {q_id} đã tồn tại trong đề thi.")
                         continue
                         
-                    max_order += 1
                     tq = TestQuestion.objects.create(
                         test=test,
                         question=question,
                         points=1.0,
                         optional_type='NONE',
-                        order_index=max_order,
+                        order_index=1,
                         part_number=1
                     )
                     added_questions.append({
@@ -4321,6 +4389,33 @@ def my_tests(request):
         })
         
     return render(request, 'lms/my_tests.html', {'tests': test_data})
+
+
+@login_required
+def update_attempt_visibility_ajax(request, attempt_id):
+    from django.http import JsonResponse
+    from django.shortcuts import get_object_or_404
+    from lms.models import Attempt
+    import json
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Method not allowed.'}, status=405)
+        
+    attempt = get_object_or_404(Attempt, id=attempt_id, user=request.user)
+    if attempt.end_time:
+        return JsonResponse({'success': False, 'message': 'Attempt already completed.'})
+        
+    try:
+        data = json.loads(request.body)
+        left_page_count = int(data.get('left_page_count', 0))
+        left_page_time = int(data.get('left_page_time', 0))
+        
+        attempt.left_page_count = left_page_count
+        attempt.left_page_time = left_page_time
+        attempt.save()
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 
 

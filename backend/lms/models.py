@@ -290,6 +290,7 @@ class Test(models.Model):
         ('LESSON_ONLY', 'Đề thi gắn vào bài học'),
     )
     title = models.CharField(max_length=255)
+    short_description = models.CharField(max_length=500, blank=True, default='', verbose_name="Mô tả ngắn về đề thi")
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     start_time = models.DateTimeField(null=True, blank=True)
     end_time = models.DateTimeField(null=True, blank=True)
@@ -384,6 +385,8 @@ class Attempt(models.Model):
     is_official = models.BooleanField(default=False)
     total_score = models.FloatField(default=0)
     shuffled_data = models.JSONField(default=dict, help_text="Lưu thứ tự đáp án đã đảo")
+    left_page_count = models.PositiveIntegerField(default=0, verbose_name="Số lần rời khỏi trang")
+    left_page_time = models.PositiveIntegerField(default=0, verbose_name="Tổng thời gian rời khỏi trang (giây)")
     
     def __str__(self):
         return f"{self.user.username} - {self.test.title}"
