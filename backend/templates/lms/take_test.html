@@ -426,9 +426,10 @@ function examHandler() {
                 // Parse markdown
                 let parsedHTML = marked.parse(processedText.trim());
                 
-                // Restore math blocks
+                // Restore math blocks (escaping < and > to prevent browser HTML parsing issues)
                 mathBlocks.forEach(item => {
-                    parsedHTML = parsedHTML.replace(item.placeholder, () => item.math);
+                    const safeMath = item.math.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    parsedHTML = parsedHTML.replace(item.placeholder, () => safeMath);
                 });
                 
                 el.innerHTML = parsedHTML;
