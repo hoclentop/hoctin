@@ -186,6 +186,11 @@ class DynamicTestTestCase(TestCase):
         parsed_multiple = parser.parse(text_multiple)
         self.assertEqual(parsed_multiple, "<span style=\"display:none;\">Block 1</span> some text  other text <span style=\"display:none;\">Block 3</span>")
 
+        # Test basic underline tag [u]...[/u] (retained intact for frontend markdown engine)
+        text_u = "This is [u]underlined text[/u]."
+        parsed_u = parser.parse(text_u)
+        self.assertEqual(parsed_u, "This is [u]underlined text[/u].")
+
 class CourseAndLessonTestCase(TestCase):
     def setUp(self):
         # Create users

@@ -3,8 +3,6 @@
 {% block title %}Đang thi: {{ test.title }}{% endblock %}
 
 {% block extra_head %}
-<!-- Marked for Markdown Parsing -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
     .sticky-timer { position: sticky; top: 1rem; z-index: 40; }
     .question-nav-btn { width: 40px; height: 40px; }
@@ -379,6 +377,14 @@ function examHandler() {
             renderer: {
                 html(token) {
                     const text = (typeof token === 'string') ? token : (token.raw || token.text || '');
+                    const trimText = text.trim();
+                    const spanOpenRegex = /^<span\s+style=["']display:\s*none;?["']>/i;
+                    const spanCloseRegex = /<\/span>$/i;
+                    if ((spanOpenRegex.test(trimText) && spanCloseRegex.test(trimText)) ||
+                        /^<span\s+style=["']display:\s*none;?["']>$/i.test(trimText) || 
+                        trimText === '</span>') {
+                        return text;
+                    }
                     return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 }
             }

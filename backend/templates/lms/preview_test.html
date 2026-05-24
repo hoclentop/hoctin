@@ -3,10 +3,6 @@
 
 {% block title %}Xem thử đề thi: {{ test.title }}{% endblock %}
 
-{% block extra_head %}
-<!-- Marked for Markdown Parsing -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto px-4 py-8">
@@ -165,6 +161,14 @@
             renderer: {
                 html(token) {
                     const text = (typeof token === 'string') ? token : (token.raw || token.text || '');
+                    const trimText = text.trim();
+                    const spanOpenRegex = /^<span\s+style=["']display:\s*none;?["']>/i;
+                    const spanCloseRegex = /<\/span>$/i;
+                    if ((spanOpenRegex.test(trimText) && spanCloseRegex.test(trimText)) ||
+                        /^<span\s+style=["']display:\s*none;?["']>$/i.test(trimText) || 
+                        trimText === '</span>') {
+                        return text;
+                    }
                     return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 }
             }

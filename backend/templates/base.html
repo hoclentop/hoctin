@@ -19,6 +19,126 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, { ignoredClasses: ['markdown-content'] });"></script>
     <!-- Marked for Markdown Parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // 1. Register a global marked extension to parse [u]...[/u] natively
+        if (window.marked) {
+            marked.use({
+                extensions: [{
+                    name: 'underline',
+                    level: 'inline',
+                    start(src) { return src.match(/\[u\]/i)?.index; },
+                    tokenizer(src, tokens) {
+                        const rule = /^\[u\]([\s\S]*?)\[\/u\]/i;
+                        const match = rule.exec(src);
+                        if (match) {
+                            return {
+                                type: 'underline',
+                                raw: match[0],
+                                text: match[1]
+                            };
+                        }
+                    },
+                    renderer(token) {
+                        // Render natively inside <u> tag, and parse any nested markdown inside it
+                        return `<u>${marked.parseInline(token.text)}</u>`;
+                    }
+                }, {
+                    name: 'hide',
+                    level: 'inline',
+                    start(src) { return src.match(/\[hide\]/i)?.index; },
+                    tokenizer(src, tokens) {
+                        const rule = /^\[hide\]([\s\S]*?)\[\/hide\]/i;
+                        const match = rule.exec(src);
+                        if (match) {
+                            return {
+                                type: 'hide',
+                                raw: match[0],
+                                text: match[1]
+                            };
+                        }
+                    },
+                    renderer(token) {
+                        // Render natively inside display:none span, and parse nested markdown
+                        return `<span style="display:none;">${marked.parseInline(token.text)}</span>`;
+                    }
+                }]
+            });
+        }
+
+        // 2. Globally hook into window.marked using Object.defineProperty to intercept and wrap marked.parse
+        // even if child templates re-load marked.min.js CDN and overwrite window.marked.
+        (function() {
+            let _marked = window.marked;
+            
+            function wrapParse(m) {
+                if (m && typeof m.parse === 'function' && !m.parse._isHooked) {
+                    const originalMarkedParse = m.parse;
+                    m.parse = function(text, options, callback) {
+                        let html = originalMarkedParse.call(m, text, options, callback);
+                        if (typeof html === 'string') {
+                            html = html.replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>');
+                            html = html.replace(/\[hide\]([\s\S]*?)\[\/hide\]/gi, '<span style="display:none;">$1</span>');
+                            html = html.replace(/&lt;span\s+style=["']display:\s*none;?["']&gt;([\s\S]*?)&lt;\/span&gt;/gi, '<span style="display:none;">$1</span>');
+                            return html;
+                        }
+                        return html;
+                    };
+                    m.parse._isHooked = true;
+                }
+                
+                // Hook marked.use to prevent escaping of display:none span tags for [hide]
+                if (m && typeof m.use === 'function' && !m.use._isHooked) {
+                    const originalUse = m.use;
+                    m.use = function(...args) {
+                        args.forEach(arg => {
+                            if (arg && arg.renderer && typeof arg.renderer.html === 'function') {
+                                const originalHtml = arg.renderer.html;
+                                arg.renderer.html = function(token) {
+                                    const text = (typeof token === 'string') ? token : (token.raw || token.text || '');
+                                    
+                                    const spanOpenRegex = /^<span\s+style=["']display:\s*none;?["']>/i;
+                                    const spanCloseRegex = /<\/span>$/i;
+                                    
+                                    if ((spanOpenRegex.test(text.trim()) && spanCloseRegex.test(text.trim())) ||
+                                        /^<span\s+style=["']display:\s*none;?["']>$/i.test(text.trim()) || 
+                                        text.trim() === '</span>') {
+                                        return text;
+                                    }
+                                    
+                                    return originalHtml.call(this, token);
+                                };
+                            }
+                        });
+                        return originalUse.apply(m, args);
+                    };
+                    m.use._isHooked = true;
+                }
+                
+                return m;
+            }
+            
+            if (_marked) {
+                _marked = wrapParse(_marked);
+            }
+            
+            Object.defineProperty(window, 'marked', {
+                get() {
+                    if (_marked && typeof _marked.parse === 'function' && !_marked.parse._isHooked) {
+                        _marked = wrapParse(_marked);
+                    }
+                    return _marked;
+                },
+                set(newVal) {
+                    _marked = newVal;
+                    if (_marked) {
+                        _marked = wrapParse(_marked);
+                    }
+                },
+                configurable: true,
+                enumerable: true
+            });
+        })();
+    </script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
     
@@ -65,6 +185,59 @@
             font-size: 0.875rem !important;
             font-family: inherit !important;
             box-shadow: none !important;
+        }
+
+        /* Global Headings Styling inside Markdown Content to override Tailwind preflight reset */
+        .markdown-content h1, 
+        .preview-content h1, 
+        .question-body h1, 
+        .question-content-preview h1 {
+            font-size: 2rem !important;
+            font-weight: 700 !important;
+            margin-top: 1.5rem !important;
+            margin-bottom: 0.75rem !important;
+            color: #111827 !important;
+            font-family: 'Outfit', sans-serif !important;
+            border-bottom: 2px solid #e5e7eb !important;
+            padding-bottom: 0.375rem !important;
+            display: block !important;
+        }
+        .markdown-content h2, 
+        .preview-content h2, 
+        .question-body h2, 
+        .question-content-preview h2 {
+            font-size: 1.6rem !important;
+            font-weight: 700 !important;
+            margin-top: 1.35rem !important;
+            margin-bottom: 0.5rem !important;
+            color: #1f2937 !important;
+            font-family: 'Outfit', sans-serif !important;
+            border-bottom: 1px solid #e5e7eb !important;
+            padding-bottom: 0.25rem !important;
+            display: block !important;
+        }
+        .markdown-content h3, 
+        .preview-content h3, 
+        .question-body h3, 
+        .question-content-preview h3 {
+            font-size: 1.3rem !important;
+            font-weight: 600 !important;
+            margin-top: 1.25rem !important;
+            margin-bottom: 0.5rem !important;
+            color: #374151 !important;
+            font-family: 'Outfit', sans-serif !important;
+            display: block !important;
+        }
+        .markdown-content h4, 
+        .preview-content h4, 
+        .question-body h4, 
+        .question-content-preview h4 {
+            font-size: 1.15rem !important;
+            font-weight: 600 !important;
+            margin-top: 1rem !important;
+            margin-bottom: 0.375rem !important;
+            color: #4b5563 !important;
+            display: block !important;
         }
 
         /* Markdown List Styles */
@@ -135,6 +308,16 @@
         .question-body tbody tr:nth-child(even) td, 
         .question-content-preview tbody tr:nth-child(even) td {
             background-color: #f9fafb !important;
+        }
+
+        /* Ensure underlined tags always display correctly despite Tailwind CSS resets */
+        u, 
+        .markdown-content u, 
+        .preview-content u, 
+        .question-body u, 
+        .question-content-preview u,
+        .prose u {
+            text-decoration: underline !important;
         }
     </style>
     {% block extra_head %}{% endblock %}
