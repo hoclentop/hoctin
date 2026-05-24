@@ -3273,6 +3273,40 @@ def update_part_instruction_ajax(request, test_id):
     return JsonResponse({'error': 'Phương thức không hợp lệ.'}, status=405)
 
 
+@csrf_exempt
+@login_required
+def update_shared_instruction_ajax(request, instruction_id):
+    """AJAX: Sửa đổi trực tiếp SharedInstruction."""
+    if not (request.user.is_staff or request.user.is_superuser):
+        return JsonResponse({'error': 'Bạn không có quyền thực hiện tác vụ này.'}, status=403)
+        
+    shared_inst = get_object_or_404(SharedInstruction, id=instruction_id)
+    if request.method == 'POST':
+        import json
+        try:
+            data = json.loads(request.body)
+            title = data.get('title', '').strip()
+            content = data.get('content', '').strip()
+            
+            if not content:
+                return JsonResponse({'error': 'Nội dung lời dẫn không được để trống.'}, status=400)
+                
+            shared_inst.title = title or shared_inst.title
+            shared_inst.content = content
+            shared_inst.save()
+            
+            return JsonResponse({
+                'success': True,
+                'id': shared_inst.id,
+                'title': shared_inst.title,
+                'content': shared_inst.content,
+                'message': 'Cập nhật lời dẫn dùng chung thành công. Lưu ý: Thay đổi sẽ áp dụng cho tất cả các phần/đề thi đang sử dụng lời dẫn này.'
+            })
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'error': 'Phương thức không hợp lệ.'}, status=405)
+
+
 # --- HỆ THỐNG IMPORT CÂU HỎI SỐ LƯỢNG LỚN (AIKEN & CSV PARSER) ---
 import re
 import csv

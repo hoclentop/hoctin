@@ -65,8 +65,11 @@
         instructionPartNum: 1,
         selectedInstructionId: '',
         showCreateNewForm: false,
+        showEditForm: false,
         newInstructionTitle: '',
         newInstructionContent: '',
+        editInstructionTitle: '',
+        editInstructionContent: '',
         sharedInstructions: [
             {% for si in shared_instructions %}
             {
@@ -306,8 +309,11 @@
             this.instructionPartNum = 1;
             this.selectedInstructionId = '';
             this.showCreateNewForm = false;
+            this.showEditForm = false;
             this.newInstructionTitle = '';
             this.newInstructionContent = '';
+            this.editInstructionTitle = '';
+            this.editInstructionContent = '';
             this.showInstructionModal = true;
         },
 
@@ -318,6 +324,65 @@
             this.showCreateNewForm = false;
             this.newInstructionTitle = '';
             this.newInstructionContent = '';
+            if (instId) {
+                this.startEditingSharedInstruction();
+            } else {
+                this.showEditForm = false;
+            }
+        },
+
+        startEditingSharedInstruction() {
+            let shared = this.sharedInstructions.find(si => si.id == this.selectedInstructionId);
+            if (shared) {
+                this.editInstructionTitle = shared.title;
+                this.editInstructionContent = shared.content;
+                this.showEditForm = true;
+            }
+        },
+
+        saveEditedSharedInstruction() {
+            if (!this.editInstructionContent.trim()) {
+                alert('Vui lòng nhập nội dung lời dẫn.');
+                return;
+            }
+            this.isSaving = true;
+            fetch(`/instructions/${this.selectedInstructionId}/update-ajax/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: this.editInstructionTitle,
+                    content: this.editInstructionContent
+                })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Lỗi hệ thống') });
+                return res.json();
+            })
+            .then(data => {
+                // Cập nhật danh sách sharedInstructions trên client
+                let sharedIdx = this.sharedInstructions.findIndex(si => si.id === data.id);
+                if (sharedIdx !== -1) {
+                    this.sharedInstructions[sharedIdx].title = data.title;
+                    this.sharedInstructions[sharedIdx].content = data.content;
+                }
+                
+                // Cập nhật danh sách instructions hiện tại của đề thi
+                this.instructions.forEach(inst => {
+                    if (inst.instruction_id === data.id) {
+                        inst.content = data.content;
+                    }
+                });
+
+                this.showEditForm = false;
+                alert(data.message);
+                this.isSaving = false;
+            })
+            .catch(err => {
+                alert('Lỗi: ' + err.message);
+                this.isSaving = false;
+            });
         },
 
         // API Lưu / Cập nhật lời dẫn cho phần thi
@@ -791,7 +856,7 @@
                     <div class="space-y-1">
                         <label class="block text-xs text-gray-500 mb-1">Chọn lời dẫn có sẵn</label>
                         <select x-model="selectedInstructionId" 
-                                @change="if(selectedInstructionId === 'NEW') { showCreateNewForm = true; selectedInstructionId = ''; } else { showCreateNewForm = false; }"
+                                @change="if(selectedInstructionId === 'NEW') { showCreateNewForm = true; showEditForm = false; selectedInstructionId = ''; } else { showCreateNewForm = false; showEditForm = false; }"
                                 class="w-full rounded-xl border-gray-300 shadow-sm focus:border-slate-800 focus:ring-slate-800 text-xs py-2 text-slate-800">
                             <option value="">-- Chọn lời dẫn phù hợp... --</option>
                             <template x-for="si in sharedInstructions" :key="si.id">
@@ -802,8 +867,14 @@
                     </div>
 
                     <!-- Hiển thị Preview nội dung lời dẫn có sẵn đã chọn -->
-                    <div x-show="selectedInstructionId && !showCreateNewForm" class="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1.5" style="display: none;">
-                        <span class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Xem trước nội dung:</span>
+                    <div x-show="selectedInstructionId && !showCreateNewForm && !showEditForm" class="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1.5" style="display: none;">
+                        <div class="flex items-center justify-between border-b border-indigo-150 pb-1 mb-1">
+                            <span class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Xem trước nội dung:</span>
+                            <button type="button" @click="startEditingSharedInstruction()" class="text-xs font-bold text-indigo-650 hover:text-indigo-850 flex items-center gap-0.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                Sửa lời dẫn này
+                            </button>
+                        </div>
                         <p class="text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-line" 
                            x-text="sharedInstructions.find(si => si.id == selectedInstructionId)?.content"></p>
                     </div>
@@ -825,8 +896,32 @@
                                       class="w-full rounded-xl border-gray-300 shadow-sm focus:border-slate-800 focus:ring-slate-800 text-xs p-2.5"></textarea>
                         </div>
                     </div>
+
+                    <!-- Form chỉnh sửa lời dẫn -->
+                    <div x-show="showEditForm" class="p-4 bg-amber-50/50 border border-amber-200 rounded-2xl space-y-3" style="display: none;">
+                        <div class="flex items-center justify-between border-b border-amber-250 pb-2">
+                            <span class="text-xs font-bold text-amber-900 font-outfit">Sửa lời dẫn dùng chung</span>
+                            <button type="button" @click="showEditForm = false" class="text-xs font-bold text-slate-500 hover:text-slate-700">Quay lại</button>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-amber-800 mb-0.5">Tên gợi nhớ</label>
+                            <input type="text" x-model="editInstructionTitle" placeholder="Tên gợi nhớ..."
+                                   class="w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-amber-800 mb-0.5">Nội dung (Markdown + LaTeX)</label>
+                            <textarea x-model="editInstructionContent" rows="4" placeholder="Nhập nội dung lời dẫn..."
+                                      class="w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 text-xs p-2.5"></textarea>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button type="button" @click="saveEditedSharedInstruction()"
+                                    class="w-full bg-slate-900 hover:bg-slate-950 text-white font-bold py-2 rounded-xl transition-all text-xs">
+                                Lưu thay đổi
+                            </button>
+                        </div>
+                    </div>
                     
-                    <div class="flex justify-end gap-2 pt-2">
+                    <div class="flex justify-end gap-2 pt-2" x-show="!showEditForm">
                         <button type="button" @click="saveInstruction()"
                                 class="w-full bg-slate-900 hover:bg-slate-950 text-white font-bold py-2 rounded-xl transition-all text-xs">
                             <span x-text="showCreateNewForm ? 'Tạo mới & Áp dụng' : 'Áp dụng lời dẫn đã chọn'"></span>

@@ -66,6 +66,7 @@ urlpatterns = [
     path('tests/questions/<int:tq_id>/update-ajax/', views.update_test_question_ajax, name='update_test_question_ajax'),
     path('tests/<int:test_id>/questions/add-quick-ajax/', views.add_questions_quick_ajax, name='add_questions_quick_ajax'),
     path('tests/<int:test_id>/instructions/update-ajax/', views.update_part_instruction_ajax, name='update_part_instruction_ajax'),
+    path('instructions/<int:instruction_id>/update-ajax/', views.update_shared_instruction_ajax, name='update_shared_instruction_ajax'),
     
     # URL Gói đề luyện tập
     path('bundles/', views.test_bundle_list, name='test_bundle_list'),
