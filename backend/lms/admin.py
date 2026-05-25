@@ -208,8 +208,8 @@ class TestRegulationAdmin(admin.ModelAdmin):
 
 @admin.register(Test)
 class TestAdmin(admin.ModelAdmin):
-    list_display = ['title', 'price', 'short_description', 'start_time', 'end_time', 'is_official', 'creator']
-    list_filter = ['is_official']
+    list_display = ['title', 'price', 'short_description', 'start_time', 'end_time', 'is_official', 'shuffle_parts', 'creator']
+    list_filter = ['is_official', 'shuffle_parts']
     search_fields = ['title']
     inlines = [TestPartInstructionInline]
     exclude = ['creator']
@@ -313,8 +313,8 @@ class DynamicTestForm(forms.ModelForm):
 @admin.register(DynamicTest)
 class DynamicTestAdmin(admin.ModelAdmin):
     form = DynamicTestForm
-    list_display = ['title', 'price', 'short_description', 'total_points', 'max_questions', 'start_time', 'end_time', 'is_official', 'creator']
-    list_filter = ['is_official']
+    list_display = ['title', 'price', 'short_description', 'total_points', 'max_questions', 'start_time', 'end_time', 'is_official', 'shuffle_parts', 'creator']
+    list_filter = ['is_official', 'shuffle_parts']
     search_fields = ['title']
     exclude = ['creator']
 

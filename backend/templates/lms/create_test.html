@@ -19,7 +19,8 @@
      x-data="{
         is_official: {% if test.is_official %}true{% else %}false{% endif %},
         price: {% if test.price %}{{ test.price|unlocalize }}{% else %}0{% endif %},
-        allow_practice: {% if test.allow_practice or not is_edit %}true{% else %}false{% endif %}
+        allow_practice: {% if test.allow_practice or not is_edit %}true{% else %}false{% endif %},
+        shuffle_parts: {% if test.shuffle_parts %}true{% else %}false{% endif %}
      }">
 
     <!-- Header Section -->
@@ -112,8 +113,8 @@
                         </div>
                     </div>
 
-                    <!-- Flags & Switches (Allow Practice & Is Official) -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Flags & Switches (Allow Practice & Is Official & Shuffle Parts) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         
                         <!-- Is Official -->
                         <div class="flex items-center justify-between bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/80">
@@ -143,6 +144,21 @@
                                       :class="allow_practice ? 'translate-x-5' : 'translate-x-0'"></span>
                             </button>
                             <input type="hidden" name="allow_practice" :value="allow_practice ? 'on' : 'off'">
+                        </div>
+
+                        <!-- Shuffle Parts -->
+                        <div class="flex items-center justify-between bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/80">
+                            <div class="flex flex-col">
+                                <span class="text-sm font-semibold text-indigo-900">Đảo các phần thi</span>
+                                <span class="text-xs text-indigo-600/80">Trộn ngẫu nhiên thứ tự phần thi</span>
+                            </div>
+                            <button type="button" @click="shuffle_parts = !shuffle_parts"
+                                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                                    :class="shuffle_parts ? 'bg-indigo-600' : 'bg-gray-200'">
+                                <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                                      :class="shuffle_parts ? 'translate-x-5' : 'translate-x-0'"></span>
+                            </button>
+                            <input type="hidden" name="shuffle_parts" :value="shuffle_parts ? 'on' : 'off'">
                         </div>
 
                     </div>

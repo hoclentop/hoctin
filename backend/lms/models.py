@@ -297,6 +297,7 @@ class Test(models.Model):
     duration = models.PositiveIntegerField(default=60, help_text="Thời gian làm bài (phút)")
     allow_practice = models.BooleanField(default=True)
     is_official = models.BooleanField(default=False, verbose_name="Kỳ thi chính thức")
+    shuffle_parts = models.BooleanField(default=False, verbose_name="Đảo ngẫu nhiên các phần", help_text="Nếu đề thi có nhiều phần, cho phép đảo ngẫu nhiên các phần đó.")
     test_type = models.CharField(
         max_length=20,
         choices=TYPE_CHOICES,

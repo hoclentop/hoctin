@@ -2093,3 +2093,48 @@ class QuestionChoicePositionTests(TestCase):
         self.assertEqual(choices[2].content, 'C')
         self.assertEqual(choices[2].position, 8)
         self.assertEqual(choices[2].is_correct, True)
+
+
+class TestShufflePartsTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from lms.models import Test, Question, TestQuestion
+        
+        self.creator = User.objects.create_superuser(username="admin_shuffle", password="password")
+        self.client.login(username="admin_shuffle", password="password")
+        
+        # Create a Test
+        self.test = Test.objects.create(
+            title="Đề thi 2 phần",
+            price=0.0,
+            duration=60,
+            shuffle_parts=True,
+            creator=self.creator
+        )
+        
+        # Create questions
+        self.q1 = Question.objects.create(content="Câu hỏi phần 1", question_type=1)
+        self.q2 = Question.objects.create(content="Câu hỏi phần 2", question_type=1)
+        
+        # Add to test questions
+        TestQuestion.objects.create(test=self.test, question=self.q1, part_number=1, order_index=1)
+        TestQuestion.objects.create(test=self.test, question=self.q2, part_number=2, order_index=1)
+
+    def test_shuffle_parts_shuffles_and_preserves_order(self):
+        from django.urls import reverse
+        from lms.models import Attempt
+        
+        # Start attempt
+        response = self.client.get(reverse('take_test', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        attempt = Attempt.objects.get(user=self.creator, test=self.test)
+        self.assertIn('_part_order', attempt.shuffled_data)
+        
+        # Ensure '_part_order' has both parts
+        part_order = attempt.shuffled_data['_part_order']
+        self.assertEqual(set(part_order), {'1', '2'})
+        
+        # Verify that it renders correctly in review view too
+        response = self.client.get(reverse('review_attempt', args=[attempt.id]))
+        self.assertEqual(response.status_code, 200)

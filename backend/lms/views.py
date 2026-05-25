@@ -917,7 +917,7 @@ def take_test(request, test_id):
 
         # Phẳng hóa câu hỏi đã xáo trộn và dựng MockTestQuestion
         all_q_info = []
-        for part_key in sorted(attempt.shuffled_data.keys(), key=lambda x: int(x)):
+        for part_key in sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x)):
             all_q_info.extend(attempt.shuffled_data[part_key])
             
         questions_by_part = {}
@@ -1013,6 +1013,12 @@ def take_test(request, test_id):
                     shuffled_data[part_key] = []
                 shuffled_data[part_key].append(q_info)
             
+            # Đảo ngẫu nhiên thứ tự phần thi nếu có tùy chọn và có nhiều hơn 1 phần thi
+            part_keys = [k for k in shuffled_data.keys() if k != '_part_order']
+            if test.shuffle_parts and len(part_keys) > 1:
+                random.shuffle(part_keys)
+            shuffled_data['_part_order'] = part_keys
+            
             attempt.shuffled_data = shuffled_data
             attempt.save()
 
@@ -1034,6 +1040,8 @@ def take_test(request, test_id):
         for tq in tqs_by_id.values():
             found = False
             for part_key, q_list in attempt.shuffled_data.items():
+                if part_key == '_part_order':
+                    continue
                 if any(q['tq_id'] == tq.id for q in q_list):
                     found = True
                     break
@@ -1056,15 +1064,25 @@ def take_test(request, test_id):
                 part_key = str(tq.part_number)
                 attempt.shuffled_data.setdefault(part_key, []).append(q_info)
                 shuffled_modified = True
+                
+                # Cập nhật _part_order nếu chưa tồn tại part_key
+                if '_part_order' in attempt.shuffled_data:
+                    if part_key not in attempt.shuffled_data['_part_order']:
+                        attempt.shuffled_data['_part_order'].append(part_key)
 
         if shuffled_modified:
             attempt.save()
             
         # Phẳng hóa câu hỏi đã xáo trộn
         all_q_info = []
-        # Duy trì thứ tự phần thi gốc của attempt khi phẳng hóa
-        for part_key in sorted(attempt.shuffled_data.keys(), key=lambda x: int(x)):
-            all_q_info.extend(attempt.shuffled_data[part_key])
+        # Duy trì thứ tự phần thi đã xáo trộn hoặc gốc của attempt khi phẳng hóa
+        part_order = attempt.shuffled_data.get('_part_order')
+        if not part_order:
+            part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
+            
+        for part_key in part_order:
+            if part_key in attempt.shuffled_data:
+                all_q_info.extend(attempt.shuffled_data[part_key])
             
         questions_by_part = {}
         for q_info in all_q_info:
@@ -1116,16 +1134,24 @@ def take_test(request, test_id):
                 questions_by_part[part_num] = []
             questions_by_part[part_num].append(questions_with_choices)
         
-    for part_num in sorted(questions_by_part.keys()):
-        instruction = part_instructions.get(part_num)
-        parts_to_render.append({
-            'part': {
-                'id': part_num,
-                'title_roman': int_to_roman(part_num),
-                'instruction': instruction.content if instruction else ""
-            },
-            'questions': questions_by_part[part_num]
-        })
+    part_order = attempt.shuffled_data.get('_part_order')
+    if not part_order:
+        part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
+        
+    display_idx = 1
+    for part_key in part_order:
+        part_num = int(part_key)
+        if part_num in questions_by_part:
+            instruction = part_instructions.get(part_num)
+            parts_to_render.append({
+                'part': {
+                    'id': part_num,
+                    'title_roman': int_to_roman(display_idx),
+                    'instruction': instruction.content if instruction else ""
+                },
+                'questions': questions_by_part[part_num]
+            })
+            display_idx += 1
 
     # Calculate remaining time (seconds) based on start_time and test duration
     elapsed = (timezone.now() - attempt.start_time).total_seconds()
@@ -1157,6 +1183,8 @@ def submit_test(request, attempt_id):
         if hasattr(attempt.test, 'dynamictest'):
             # Đối với đề thi động, các câu hỏi và thứ tự được lưu trong attempt.shuffled_data
             for part_key, q_list in attempt.shuffled_data.items():
+                if part_key == '_part_order':
+                    continue
                 for q_info in q_list:
                     q_id = q_info['question_id']
                     points = q_info.get('points', 1.0)
@@ -1278,7 +1306,7 @@ def review_attempt(request, attempt_id):
     if is_dynamic:
         # Phẳng hóa câu hỏi đã xáo trộn từ shuffled_data cho đề động
         all_q_info = []
-        for part_key in sorted(attempt.shuffled_data.keys(), key=lambda x: int(x)):
+        for part_key in sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x)):
             all_q_info.extend(attempt.shuffled_data[part_key])
             
         questions_by_part = {}
@@ -1365,6 +1393,8 @@ def review_attempt(request, attempt_id):
         for tq in tqs_by_id.values():
             found = False
             for part_key, q_list in attempt.shuffled_data.items():
+                if part_key == '_part_order':
+                    continue
                 if any(q['tq_id'] == tq.id for q in q_list):
                     found = True
                     break
@@ -1387,15 +1417,25 @@ def review_attempt(request, attempt_id):
                 part_key = str(tq.part_number)
                 attempt.shuffled_data.setdefault(part_key, []).append(q_info)
                 shuffled_modified = True
+                
+                # Cập nhật _part_order nếu chưa tồn tại part_key
+                if '_part_order' in attempt.shuffled_data:
+                    if part_key not in attempt.shuffled_data['_part_order']:
+                        attempt.shuffled_data['_part_order'].append(part_key)
 
         if shuffled_modified:
             attempt.save()
             
         # Phẳng hóa câu hỏi đã xáo trộn
         all_q_info = []
-        # Duy trì thứ tự phần thi gốc của attempt khi phẳng hóa
-        for part_key in sorted(attempt.shuffled_data.keys(), key=lambda x: int(x)):
-            all_q_info.extend(attempt.shuffled_data[part_key])
+        # Duy trì thứ tự phần thi gốc hoặc đã xáo trộn của attempt khi phẳng hóa
+        part_order = attempt.shuffled_data.get('_part_order')
+        if not part_order:
+            part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
+            
+        for part_key in part_order:
+            if part_key in attempt.shuffled_data:
+                all_q_info.extend(attempt.shuffled_data[part_key])
             
         questions_by_part = {}
         for q_info in all_q_info:
@@ -1447,16 +1487,24 @@ def review_attempt(request, attempt_id):
                 questions_by_part[part_num] = []
             questions_by_part[part_num].append(questions_with_results)
             
-    for part_num in sorted(questions_by_part.keys()):
-        instruction = part_instructions.get(part_num)
-        parts_to_render.append({
-            'part': {
-                'id': part_num,
-                'title_roman': int_to_roman(part_num),
-                'instruction': instruction.content if instruction else ""
-            },
-            'questions': questions_by_part[part_num]
-        })
+    part_order = attempt.shuffled_data.get('_part_order')
+    if not part_order:
+        part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
+        
+    display_idx = 1
+    for part_key in part_order:
+        part_num = int(part_key)
+        if part_num in questions_by_part:
+            instruction = part_instructions.get(part_num)
+            parts_to_render.append({
+                'part': {
+                    'id': part_num,
+                    'title_roman': int_to_roman(display_idx),
+                    'instruction': instruction.content if instruction else ""
+                },
+                'questions': questions_by_part[part_num]
+            })
+            display_idx += 1
 
     return render(request, 'lms/review_attempt.html', {
         'attempt': attempt,
@@ -2576,6 +2624,7 @@ def duplicate_test(request, test_id):
             duration=original_test.duration,
             allow_practice=original_test.allow_practice,
             is_official=original_test.is_official,
+            shuffle_parts=original_test.shuffle_parts,
             regulation=original_test.regulation,
             start_time=original_test.start_time,
             end_time=original_test.end_time,
@@ -2619,6 +2668,7 @@ def create_test(request):
         duration = request.POST.get('duration', '60')
         allow_practice = request.POST.get('allow_practice') == 'on'
         is_official = request.POST.get('is_official') == 'on'
+        shuffle_parts = request.POST.get('shuffle_parts') == 'on'
         regulation_id = request.POST.get('regulation_id')
         test_type = request.POST.get('test_type', 'STANDALONE').strip()
         
@@ -2655,6 +2705,7 @@ def create_test(request):
                 duration=int(duration),
                 allow_practice=allow_practice,
                 is_official=is_official,
+                shuffle_parts=shuffle_parts,
                 test_type=test_type,
                 regulation=regulation,
                 start_time=start_time,
@@ -2687,6 +2738,7 @@ def edit_test_basic(request, test_id):
         duration = request.POST.get('duration', '60')
         allow_practice = request.POST.get('allow_practice') == 'on'
         is_official = request.POST.get('is_official') == 'on'
+        shuffle_parts = request.POST.get('shuffle_parts') == 'on'
         regulation_id = request.POST.get('regulation_id')
         test_type = request.POST.get('test_type', 'STANDALONE').strip()
         
@@ -2722,6 +2774,7 @@ def edit_test_basic(request, test_id):
             test.duration = int(duration)
             test.allow_practice = allow_practice
             test.is_official = is_official
+            test.shuffle_parts = shuffle_parts
             test.test_type = test_type
             test.regulation = regulation
             test.start_time = start_time
