@@ -2138,3 +2138,37 @@ class TestShufflePartsTestCase(TestCase):
         # Verify that it renders correctly in review view too
         response = self.client.get(reverse('review_attempt', args=[attempt.id]))
         self.assertEqual(response.status_code, 200)
+
+    def test_shuffle_parts_false_enforces_natural_order(self):
+        from django.urls import reverse
+        from lms.models import Attempt
+        
+        # Set shuffle_parts to False
+        self.test.shuffle_parts = False
+        self.test.save()
+        
+        # Start attempt
+        response = self.client.get(reverse('take_test', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        # Manually alter the attempt's _part_order to be reversed
+        attempt = Attempt.objects.get(user=self.creator, test=self.test)
+        attempt.shuffled_data['_part_order'] = ['2', '1']
+        attempt.save()
+        
+        # Fetch the take_test view and verify the rendered parts are ordered ['1', '2']
+        response = self.client.get(reverse('take_test', args=[self.test.id]))
+        self.assertEqual(response.status_code, 200)
+        parts = response.context['parts']
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0]['part']['id'], 1)
+        self.assertEqual(parts[1]['part']['id'], 2)
+        
+        # Verify review_attempt view also gets them in natural sequential order ['1', '2']
+        response = self.client.get(reverse('review_attempt', args=[attempt.id]))
+        self.assertEqual(response.status_code, 200)
+        parts = response.context['parts']
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0]['part']['id'], 1)
+        self.assertEqual(parts[1]['part']['id'], 2)
+

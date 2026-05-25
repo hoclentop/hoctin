@@ -1017,6 +1017,8 @@ def take_test(request, test_id):
             part_keys = [k for k in shuffled_data.keys() if k != '_part_order']
             if test.shuffle_parts and len(part_keys) > 1:
                 random.shuffle(part_keys)
+            else:
+                part_keys = sorted(part_keys, key=lambda x: int(x))
             shuffled_data['_part_order'] = part_keys
             
             attempt.shuffled_data = shuffled_data
@@ -1069,6 +1071,8 @@ def take_test(request, test_id):
                 if '_part_order' in attempt.shuffled_data:
                     if part_key not in attempt.shuffled_data['_part_order']:
                         attempt.shuffled_data['_part_order'].append(part_key)
+                        if not test.shuffle_parts:
+                            attempt.shuffled_data['_part_order'] = sorted(attempt.shuffled_data['_part_order'], key=lambda x: int(x))
 
         if shuffled_modified:
             attempt.save()
@@ -1077,7 +1081,7 @@ def take_test(request, test_id):
         all_q_info = []
         # Duy trì thứ tự phần thi đã xáo trộn hoặc gốc của attempt khi phẳng hóa
         part_order = attempt.shuffled_data.get('_part_order')
-        if not part_order:
+        if not test.shuffle_parts or not part_order:
             part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
             
         for part_key in part_order:
@@ -1135,7 +1139,7 @@ def take_test(request, test_id):
             questions_by_part[part_num].append(questions_with_choices)
         
     part_order = attempt.shuffled_data.get('_part_order')
-    if not part_order:
+    if not test.shuffle_parts or not part_order:
         part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
         
     display_idx = 1
@@ -1422,6 +1426,8 @@ def review_attempt(request, attempt_id):
                 if '_part_order' in attempt.shuffled_data:
                     if part_key not in attempt.shuffled_data['_part_order']:
                         attempt.shuffled_data['_part_order'].append(part_key)
+                        if not attempt.test.shuffle_parts:
+                            attempt.shuffled_data['_part_order'] = sorted(attempt.shuffled_data['_part_order'], key=lambda x: int(x))
 
         if shuffled_modified:
             attempt.save()
@@ -1430,7 +1436,7 @@ def review_attempt(request, attempt_id):
         all_q_info = []
         # Duy trì thứ tự phần thi gốc hoặc đã xáo trộn của attempt khi phẳng hóa
         part_order = attempt.shuffled_data.get('_part_order')
-        if not part_order:
+        if not attempt.test.shuffle_parts or not part_order:
             part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
             
         for part_key in part_order:
@@ -1488,7 +1494,7 @@ def review_attempt(request, attempt_id):
             questions_by_part[part_num].append(questions_with_results)
             
     part_order = attempt.shuffled_data.get('_part_order')
-    if not part_order:
+    if not attempt.test.shuffle_parts or not part_order:
         part_order = sorted([k for k in attempt.shuffled_data.keys() if k != '_part_order'], key=lambda x: int(x))
         
     display_idx = 1

@@ -77,7 +77,7 @@
         .then(response => response.json())
         .then(data => {
             if (data.url) {
-                const newValue = `![image](${data.url})`;
+                const newValue = `![](${data.url})`;
                 // Tìm text "Đang tải ảnh..." và thay thế
                 const doc = cm.getDoc();
                 const cursor = cm.getCursor();
