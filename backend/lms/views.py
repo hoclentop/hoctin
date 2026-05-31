@@ -14,7 +14,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login as auth_login
 from .models import (
     Course, Test, DynamicTest, CourseBundle, TestBundle, 
-    CourseOwnership, TestOwnership, Lesson, LessonProgress,
+    CourseOwnership, TestOwnership, Lesson, LessonProgress, MultiExerciseProgress,
     WalletTransaction, Profile, Attempt, SharedInstruction, TestPartInstruction, TestQuestion,
     AttemptAnswer, Choice, Question, QuestionGroup, TestRegulation, EquivalentQuestionGroup,
     BankAccount
@@ -486,6 +486,40 @@ def buy_course(request, course_id):
         messages.success(request, f"Mua khóa học '{course.title}' thành công.")
     return redirect('course_detail', course_id=course.id)
 
+import re
+
+def parse_external_link_helper(link):
+    link = link.strip().rstrip('*').strip()
+    link_lower = link.lower()
+    
+    if 'hsgtin' in link_lower or 'on.hsgtin.vn' in link_lower:
+        match = re.search(r'/problem/([^/?#]+)', link)
+        if match:
+            return 'hsgtin', match.group(1)
+    elif 'vnoj' in link_lower or 'oj.vnoi.info' in link_lower:
+        match = re.search(r'/problem/([^/?#]+)', link)
+        if match:
+            return 'vnoj', match.group(1)
+    elif 'codeforces' in link_lower:
+        match1 = re.search(r'/contest/(\d+)/problem/([^/?#]+)', link)
+        if match1:
+            return 'codeforces', f"{match1.group(1)}{match1.group(2)}"
+        match2 = re.search(r'/problemset/problem/(\d+)/([^/?#]+)', link)
+        if match2:
+            return 'codeforces', f"{match2.group(1)}{match2.group(2)}"
+    return None, None
+
+def extract_exercise_info_helper(line):
+    is_hard = '*' in line
+    url_match = re.search(r'(https?://[^\s*]+)', line)
+    if not url_match:
+        return None, None, None, False
+    url = url_match.group(1).rstrip(')>. *')
+    platform, problem_code = parse_external_link_helper(url)
+    if platform and problem_code:
+        return url, platform, problem_code, is_hard
+    return None, None, None, False
+
 @login_required
 def lesson_detail(request, course_id, lesson_id):
     course = get_object_or_404(Course, id=course_id)
@@ -542,11 +576,36 @@ def lesson_detail(request, course_id, lesson_id):
             'past_attempts': past_attempts
         }
         
+    # Fetch multi exercise links and progress
+    multi_exercises = []
+    if lesson.lesson_type == 'MULTI_EXERCISE':
+        lines = lesson.content.split('\n')
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+            url, platform, problem_code, is_hard = extract_exercise_info_helper(line_stripped)
+            if platform and problem_code:
+                completed = MultiExerciseProgress.objects.filter(
+                    user=request.user,
+                    lesson=lesson,
+                    link=url,
+                    is_completed=True
+                ).exists()
+                multi_exercises.append({
+                    'url': url,
+                    'platform': 'on.hsgtin.vn' if platform == 'hsgtin' else platform.upper(),
+                    'problem_code': problem_code,
+                    'is_hard': is_hard,
+                    'is_completed': completed
+                })
+
     context = {
         'course': course,
         'lesson': lesson,
         'lessons_status': lessons_status,
-        'attempt_info': attempt_info
+        'attempt_info': attempt_info,
+        'multi_exercises': multi_exercises
     }
     return render(request, 'lms/lesson_detail.html', context)
 
@@ -635,6 +694,98 @@ def sync_lesson_progress_ajax(request, lesson_id):
     return JsonResponse({
         'success': success,
         'message': message,
+        'next_url': next_url
+    })
+
+@login_required
+def sync_multi_exercise_ajax(request, lesson_id):
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    if not CourseOwnership.has_active_ownership(request.user, lesson.course):
+        return JsonResponse({'success': False, 'message': 'Không có quyền truy cập hoặc khóa học đã hết hạn.'}, status=403)
+        
+    if lesson.lesson_type != 'MULTI_EXERCISE':
+        return JsonResponse({'success': False, 'message': 'Bài học này không phải là bài đa bài tập.'}, status=400)
+        
+    import json
+    try:
+        data = json.loads(request.body)
+        link = data.get('link', '').strip()
+    except Exception:
+        return JsonResponse({'success': False, 'message': 'Dữ liệu yêu cầu không hợp lệ.'}, status=400)
+        
+    if not link:
+        return JsonResponse({'success': False, 'message': 'Thiếu đường dẫn bài tập.'}, status=400)
+        
+    # Parse link
+    url, platform, problem_code, is_hard = extract_exercise_info_helper(link)
+    if not platform or not problem_code:
+        return JsonResponse({'success': False, 'message': 'Đường dẫn bài tập không đúng định dạng hỗ trợ (VNOJ, Codeforces, on.hsgtin.vn).'}, status=400)
+        
+    profile = request.user.profile
+    if platform == 'codeforces' and not profile.codeforces_username:
+        return JsonResponse({'success': False, 'message': 'Vui lòng cập nhật username Codeforces trong trang cá nhân của bạn.'}, status=400)
+    elif platform == 'vnoj' and not profile.vnoj_username:
+        return JsonResponse({'success': False, 'message': 'Vui lòng cập nhật username VNOJ trong trang cá nhân của bạn.'}, status=400)
+    elif platform == 'hsgtin' and not profile.dmoj_username:
+        return JsonResponse({'success': False, 'message': 'Vui lòng cập nhật username on.hsgtin.vn trong trang cá nhân của bạn.'}, status=400)
+        
+    success = False
+    if platform == 'codeforces':
+        success = JudgeSyncService.sync_codeforces(profile.codeforces_username, problem_code)
+    elif platform == 'vnoj':
+        success = JudgeSyncService.sync_vnoj(profile.vnoj_username, problem_code)
+    elif platform == 'hsgtin':
+        success = JudgeSyncService.sync_hsgtin(profile.dmoj_username, problem_code)
+        
+    if not success:
+        return JsonResponse({'success': False, 'message': 'Không tìm thấy bài nộp AC (chấp nhận) nào cho bài tập này.'}, status=200)
+        
+    is_trial_user = request.user.is_superuser or request.user.is_staff or lesson.course.creator == request.user
+    # Ghi nhận hoàn thành bài tập nhỏ (luôn lưu cho cả admin/giáo viên để hiển thị phản hồi trực quan khi chạy thử)
+    MultiExerciseProgress.objects.update_or_create(
+        user=request.user,
+        lesson=lesson,
+        link=url,
+        defaults={'is_completed': True, 'completed_at': timezone.now()}
+    )
+        
+    # Kiểm tra xem đã hoàn thành toàn bộ bài tập bắt buộc chưa
+    lines = lesson.content.split('\n')
+    required_urls = []
+    for line in lines:
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+        e_url, e_platform, e_problem_code, e_is_hard = extract_exercise_info_helper(line_stripped)
+        if e_platform and e_problem_code and not e_is_hard:
+            required_urls.append(e_url)
+            
+    completed_urls = set(MultiExerciseProgress.objects.filter(
+        user=request.user,
+        lesson=lesson,
+        is_completed=True
+    ).values_list('link', flat=True))
+    
+    lesson_completed = all(req_url in completed_urls for req_url in required_urls)
+    
+    if lesson_completed:
+        # Luôn ghi nhận hoàn tất bài học lớn (bao gồm cả admin/giáo viên học thử để đồng bộ checkmark tích xanh trên sidebar)
+        LessonProgress.objects.update_or_create(
+            user=request.user,
+            lesson=lesson,
+            defaults={'is_completed': True, 'completed_at': timezone.now()}
+        )
+        
+    next_url = None
+    if lesson_completed:
+        next_lesson = lesson.course.lessons.filter(order_index__gt=lesson.order_index).order_by('order_index').first()
+        if next_lesson:
+            next_url = f"/courses/{lesson.course.id}/lessons/{next_lesson.id}/"
+            
+    return JsonResponse({
+        'success': True,
+        'message': 'Đồng bộ thành công! Bài tập này đã được hoàn thành.',
+        'lesson_completed': lesson_completed,
         'next_url': next_url
     })
 

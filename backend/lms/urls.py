@@ -99,6 +99,7 @@ urlpatterns = [
     path('courses/<int:course_id>/buy/', views.buy_course, name='buy_course'),
     path('courses/<int:course_id>/lessons/<int:lesson_id>/', views.lesson_detail, name='lesson_detail'),
     path('lessons/<int:lesson_id>/sync-progress-ajax/', views.sync_lesson_progress_ajax, name='sync_lesson_progress_ajax'),
+    path('lessons/<int:lesson_id>/sync-multi-exercise-ajax/', views.sync_multi_exercise_ajax, name='sync_multi_exercise_ajax'),
     path('lessons/<int:lesson_id>/complete-ajax/', views.complete_lesson_ajax, name='complete_lesson_ajax'),
     
     # URL cho học sinh theo dõi khóa học & đề thi của mình

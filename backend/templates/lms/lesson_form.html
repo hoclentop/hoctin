@@ -131,6 +131,9 @@ document.addEventListener("DOMContentLoaded", function() {
             divExternalJudge.style.display = "block";
             divExternalProblem.style.display = "block";
             previewContainer.style.display = "block";
+        } else if (selectedType === "MULTI_EXERCISE") {
+            divContent.style.display = "block";
+            previewContainer.style.display = "block";
         } else if (selectedType === "TEST") {
             divTest.style.display = "block";
         }

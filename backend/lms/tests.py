@@ -519,6 +519,86 @@ class CourseAndLessonTestCase(TestCase):
         self.assertNotIn('thnam', leaderboard_usernames)
         self.assertNotIn('admin', leaderboard_usernames)
 
+    def test_multi_exercise_url_parsing_and_helpers(self):
+        from lms.views import parse_external_link_helper, extract_exercise_info_helper
+        
+        # Test parse_external_link_helper
+        plat, code = parse_external_link_helper("https://oj.vnoi.info/problem/qmax")
+        self.assertEqual(plat, "vnoj")
+        self.assertEqual(code, "qmax")
+        
+        plat, code = parse_external_link_helper("http://on.hsgtin.vn/problem/hsg7d25b4")
+        self.assertEqual(plat, "hsgtin")
+        self.assertEqual(code, "hsg7d25b4")
+        
+        plat, code = parse_external_link_helper("https://codeforces.com/contest/1800/problem/C")
+        self.assertEqual(plat, "codeforces")
+        self.assertEqual(code, "1800C")
+        
+        plat, code = parse_external_link_helper("https://codeforces.com/problemset/problem/1800/C")
+        self.assertEqual(plat, "codeforces")
+        self.assertEqual(code, "1800C")
+        
+        # Test extract_exercise_info_helper
+        url, plat, code, is_hard = extract_exercise_info_helper("https://oj.vnoi.info/problem/qmax *")
+        self.assertEqual(url, "https://oj.vnoi.info/problem/qmax")
+        self.assertEqual(plat, "vnoj")
+        self.assertEqual(code, "qmax")
+        self.assertTrue(is_hard)
+        
+        url, plat, code, is_hard = extract_exercise_info_helper("- [QMAX](https://oj.vnoi.info/problem/qmax)")
+        self.assertEqual(url, "https://oj.vnoi.info/problem/qmax")
+        self.assertEqual(plat, "vnoj")
+        self.assertEqual(code, "qmax")
+        self.assertFalse(is_hard)
+
+    def test_multi_exercise_lesson_flow_and_sync(self):
+        from lms.models import MultiExerciseProgress, LessonProgress
+        from django.urls import reverse
+        from unittest.mock import patch
+        
+        # Create MULTI_EXERCISE lesson
+        multi_lesson = Lesson.objects.create(
+            title='Multi Exercise Lesson',
+            course=self.paid_course,
+            lesson_type='MULTI_EXERCISE',
+            content="https://oj.vnoi.info/problem/qmax\nhttps://codeforces.com/contest/1800/problem/C *",
+            order_index=5
+        )
+        
+        # Register student in the course
+        CourseOwnership.objects.get_or_create(user=self.student, course=self.paid_course)
+        self.student.profile.vnoj_username = "student_vnoj"
+        self.student.profile.codeforces_username = "student_cf"
+        self.student.profile.save()
+        
+        self.client.login(username='student1', password='password123')
+        
+        # 1. Access detail view
+        response = self.client.get(reverse('lesson_detail', args=[self.paid_course.id, multi_lesson.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('multi_exercises', response.context)
+        exercises = response.context['multi_exercises']
+        self.assertEqual(len(exercises), 2)
+        
+        # 2. Sync the required exercise (vnoj qmax) - Mock sync success
+        with patch('lms.services.JudgeSyncService.sync_vnoj', return_value=True):
+            response = self.client.post(
+                reverse('sync_multi_exercise_ajax', args=[multi_lesson.id]),
+                {"link": "https://oj.vnoi.info/problem/qmax"},
+                content_type="application/json"
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertTrue(data['success'])
+            
+            # Since only vnoj qmax is required (cf is hard *), lesson should be completed now!
+            self.assertTrue(data['lesson_completed'])
+            
+            # Verify database records
+            self.assertTrue(MultiExerciseProgress.objects.filter(user=self.student, lesson=multi_lesson, link="https://oj.vnoi.info/problem/qmax", is_completed=True).exists())
+            self.assertTrue(LessonProgress.objects.filter(user=self.student, lesson=multi_lesson, is_completed=True).exists())
+
 class ProfileTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='tester', password='password123')

@@ -155,7 +155,8 @@ class Lesson(models.Model):
     TYPE_CHOICES = (
         ('THEORY', 'Bài học lý thuyết'),
         ('EXERCISE', 'Bài tập thực hành'),
-        ('TEST', 'Bài kiểm tra / Đề thi')
+        ('TEST', 'Bài kiểm tra / Đề thi'),
+        ('MULTI_EXERCISE', 'Đa bài tập lập trình'),
     )
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='lessons')
     title = models.CharField(max_length=255)
@@ -452,3 +453,19 @@ class LessonProgress(models.Model):
 
     class Meta:
         unique_together = ('user', 'lesson')
+
+
+class MultiExerciseProgress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
+    link = models.TextField(verbose_name="Đường dẫn bài tập")
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('user', 'lesson', 'link')
+        verbose_name = "Tiến độ đa bài tập"
+        verbose_name_plural = "Tiến độ đa bài tập"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.lesson.title} - {self.link} - {self.is_completed}"

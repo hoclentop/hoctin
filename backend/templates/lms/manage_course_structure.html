@@ -49,6 +49,7 @@
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold
                                 {% if lesson.lesson_type == 'THEORY' %}bg-blue-50 text-blue-700
                                 {% elif lesson.lesson_type == 'EXERCISE' %}bg-green-50 text-green-700
+                                {% elif lesson.lesson_type == 'MULTI_EXERCISE' %}bg-teal-50 text-teal-700
                                 {% else %}bg-purple-50 text-purple-700{% endif %}">
                                 {{ lesson.get_lesson_type_display }}
                             </span>
@@ -63,6 +64,9 @@
                             {% elif lesson.lesson_type == 'EXERCISE' %}
                                 <span class="text-xs font-semibold text-green-600 block">Mã bài: {{ lesson.external_problem_code }}</span>
                                 <a href="{{ lesson.external_judge_link }}" target="_blank" class="text-xs text-indigo-500 hover:underline">Link bài tập &rarr;</a>
+                            {% elif lesson.lesson_type == 'MULTI_EXERCISE' %}
+                                <span class="text-xs font-semibold text-teal-600 block">Danh sách bài tập lập trình</span>
+                                <span class="text-[11px] text-gray-400 italic">Cấu hình link trong nội dung bài học</span>
                             {% else %}
                                 {% if lesson.test %}
                                     <span class="text-xs font-bold text-purple-600">Đề: {{ lesson.test.title }}</span>
