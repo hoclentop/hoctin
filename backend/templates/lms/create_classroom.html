@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Tạo Lớp học mới - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-12 px-4 sm:px-6">
+    
+    <!-- Breadcrumb -->
+    <div class="mb-6">
+        <a href="{% url 'classroom_list' %}" class="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-bold gap-1 group">
+            <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Quay lại danh sách
+        </a>
+    </div>
+
+    <!-- Form Panel -->
+    <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-indigo-600 to-indigo-700 px-8 py-6 text-white">
+            <h1 class="text-2xl font-extrabold font-outfit">Tạo Lớp học mới</h1>
+            <p class="text-xs text-indigo-100 font-light mt-1">Khởi tạo một lớp học để giảng dạy, chia sẻ tài liệu và theo dõi tiến độ của học viên.</p>
+        </div>
+
+        <form method="post" action="{% url 'create_classroom' %}" class="p-8 space-y-6">
+            {% csrf_token %}
+            
+            <!-- Classroom Name -->
+            <div>
+                <label for="name" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Tên lớp học <span class="text-rose-500">*</span></label>
+                <input type="text" name="name" id="name" required placeholder="Ví dụ: Đội tuyển HSG Tin học 11" 
+                       class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-medium">
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label for="description" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mô tả lớp học</label>
+                <textarea name="description" id="description" rows="5" placeholder="Tóm tắt mục tiêu, lịch học hoặc nội dung trọng tâm của lớp..." 
+                          class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-light"></textarea>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <a href="{% url 'classroom_list' %}" class="px-5 py-3 rounded-xl hover:bg-slate-100 text-slate-600 font-bold transition-all text-sm">
+                    Hủy bỏ
+                </a>
+                <button type="submit" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all text-sm shadow-md hover:shadow-lg">
+                    Xác nhận tạo lớp
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

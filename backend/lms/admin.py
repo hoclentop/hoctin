@@ -3,7 +3,7 @@ from .models import (
     Profile, WalletTransaction, Course, CourseBundle, Lesson,
     QuestionGroup, EquivalentQuestionGroup, Question, Choice, Test, DynamicTest, TestBundle, SharedInstruction,
     TestPartInstruction, TestQuestion, Attempt, AttemptAnswer, TestRegulation, TestOwnership,
-    BankAccount, CourseOwnership
+    BankAccount, CourseOwnership, Classroom, ClassroomMembership, ClassroomItem
 )
 
 @admin.register(Profile)
@@ -328,4 +328,22 @@ class DynamicTestAdmin(admin.ModelAdmin):
         if not change or not obj.creator:
             obj.creator = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(Classroom)
+class ClassroomAdmin(admin.ModelAdmin):
+    list_display = ['name', 'creator', 'invite_code', 'course', 'created_at']
+    search_fields = ['name', 'creator__username']
+
+@admin.register(ClassroomMembership)
+class ClassroomMembershipAdmin(admin.ModelAdmin):
+    list_display = ['classroom', 'student', 'status', 'joined_at']
+    list_filter = ['status']
+    search_fields = ['classroom__name', 'student__username']
+
+@admin.register(ClassroomItem)
+class ClassroomItemAdmin(admin.ModelAdmin):
+    list_display = ['classroom', 'lesson', 'added_at']
+    list_filter = ['classroom']
+
 

@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Biên soạn bài học mới - Lớp: {{ classroom.name }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+    
+    <!-- Breadcrumb -->
+    <div class="mb-6">
+        <a href="{% url 'classroom_dashboard' classroom.id %}" class="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-bold gap-1 group">
+            <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Quay lại bảng điều khiển lớp
+        </a>
+    </div>
+
+    <!-- Header Panel -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 font-outfit tracking-tight">Tạo bài học mới cho lớp</h1>
+        <p class="text-sm text-gray-500 font-light mt-1">Biên soạn nội dung lý thuyết, bài tập hoặc kết nối bài thi thực hành cụ thể cho học sinh lớp **{{ classroom.name }}**.</p>
+    </div>
+
+    <!-- Form Panel -->
+    <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden" x-data="{ lessonType: 'THEORY' }">
+        <div class="bg-indigo-600 px-8 py-6 text-white">
+            <h3 class="text-lg font-extrabold font-outfit">Biểu mẫu biên soạn</h3>
+            <p class="text-xs text-indigo-100 font-light mt-1">Vui lòng điền đầy đủ các mục đánh dấu hoa thị đỏ.</p>
+        </div>
+
+        <form method="post" action="{% url 'classroom_create_lesson' classroom.id %}" class="p-8 space-y-6">
+            {% csrf_token %}
+
+            <!-- Title -->
+            <div>
+                <label for="title" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Tiêu đề bài học <span class="text-rose-500">*</span></label>
+                <input type="text" name="title" id="title" required placeholder="Ví dụ: Bài tập đệ quy & quay lui nâng cao" 
+                       class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-medium">
+            </div>
+
+            <!-- Lesson Type -->
+            <div>
+                <label for="lesson_type" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Loại bài học <span class="text-rose-500">*</span></label>
+                <select name="lesson_type" id="lesson_type" x-model="lessonType"
+                        class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-semibold bg-white">
+                    <option value="THEORY">Bài học lý thuyết</option>
+                    <option value="EXERCISE">Bài tập thực hành đơn lẻ (Judge)</option>
+                    <option value="TEST">Bài kiểm tra / Đề thi trắc nghiệm</option>
+                    <option value="MULTI_EXERCISE">Đa bài tập lập trình (Nhiều link Judge)</option>
+                </select>
+            </div>
+
+            <!-- Content Area (Theo loại) -->
+            <div>
+                <!-- Markdown Content (for THEORY, EXERCISE, MULTI_EXERCISE) -->
+                <div x-show="lessonType !== 'TEST'">
+                    <label for="content" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2" x-text="lessonType === 'MULTI_EXERCISE' ? 'Danh sách link bài tập (Mỗi link một dòng)' : 'Nội dung bài học / Hướng dẫn (Markdown + LaTeX)'"></label>
+                    <textarea name="content" id="content" rows="10" 
+                              :placeholder="lessonType === 'MULTI_EXERCISE' 
+                                            ? 'Nhập mỗi đường dẫn bài tập trên một dòng mới. Có thể thêm dấu * ở cuối dòng để đánh dấu là bài tập khó.\nVí dụ:\nhttps://on.hsgtin.vn/problem/sum\nhttps://oj.vnoi.info/problem/lis*\nhttps://codeforces.com/problemset/problem/4/A' 
+                                            : 'Nhập nội dung bài giảng, sử dụng định dạng Markdown hoặc công thức LaTeX để viết đề bài...'" 
+                              class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-light font-mono"></textarea>
+                </div>
+            </div>
+
+            <!-- Theory video link -->
+            <div x-show="lessonType === 'THEORY'">
+                <label for="video_url" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Đường dẫn video bài giảng (Youtube...)</label>
+                <input type="url" name="video_url" id="video_url" placeholder="https://www.youtube.com/watch?v=..." 
+                       class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-light">
+            </div>
+
+            <!-- Single Exercise Config -->
+            <div x-show="lessonType === 'EXERCISE'" class="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                <div>
+                    <label for="external_judge_link" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Đường dẫn bài tập trên Judge</label>
+                    <input type="url" name="external_judge_link" id="external_judge_link" placeholder="Ví dụ: https://on.hsgtin.vn/problem/sum" 
+                           class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-light">
+                </div>
+                <div>
+                    <label for="external_problem_code" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mã bài tập</label>
+                    <input type="text" name="external_problem_code" id="external_problem_code" placeholder="Ví dụ: sum" 
+                           class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-medium font-mono">
+                </div>
+            </div>
+
+            <!-- Test association Config -->
+            <div x-show="lessonType === 'TEST'" class="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                <label for="test_id" class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Đề thi / Bài kiểm tra liên kết <span class="text-rose-500">*</span></label>
+                <select name="test_id" id="test_id"
+                        class="block w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-semibold bg-white">
+                    <option value="">-- Chọn một đề thi từ hệ thống --</option>
+                    {% for test in tests %}
+                        <option value="{{ test.id }}">{{ test.title }} ({% if test.is_official %}Chính thức{% else %}Tự do{% endif %})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+                <a href="{% url 'classroom_dashboard' classroom.id %}" class="px-5 py-3 rounded-xl hover:bg-slate-100 text-slate-600 font-bold transition-all text-sm">
+                    Hủy bỏ
+                </a>
+                <button type="submit" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all text-sm shadow-md hover:shadow-lg">
+                    Xác nhận giao bài học mới
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

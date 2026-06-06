@@ -1,7 +1,7 @@
 from django.urls import path, reverse_lazy
 from django.views.generic import TemplateView
 from django.contrib.auth import views as auth_views
-from . import views
+from . import views, views_classroom
 
 urlpatterns = [
     path('', views.course_list, name='course_list'),
@@ -105,4 +105,17 @@ urlpatterns = [
     # URL cho học sinh theo dõi khóa học & đề thi của mình
     path('my-courses/', views.my_courses, name='my_courses'),
     path('my-tests/', views.my_tests, name='my_tests'),
+    
+    # URL Lớp học học tập
+    path('classrooms/', views_classroom.classroom_list, name='classroom_list'),
+    path('classrooms/create/', views_classroom.create_classroom, name='create_classroom'),
+    path('classrooms/<int:classroom_id>/', views_classroom.classroom_dashboard, name='classroom_dashboard'),
+    path('classrooms/join/<str:invite_code>/', views_classroom.join_classroom_by_code, name='join_classroom_by_code'),
+    path('classrooms/membership/<int:membership_id>/<str:action>/', views_classroom.classroom_membership_action, name='classroom_membership_action'),
+    path('classrooms/<int:classroom_id>/add-existing/', views_classroom.classroom_add_existing_lesson, name='classroom_add_existing_lesson'),
+    path('classrooms/<int:classroom_id>/create-lesson/', views_classroom.classroom_create_lesson, name='classroom_create_lesson'),
+    path('classrooms/<int:classroom_id>/lessons/<int:lesson_id>/', views_classroom.classroom_lesson_detail, name='classroom_lesson_detail'),
+    path('classrooms/<int:classroom_id>/lessons/<int:lesson_id>/complete/', views_classroom.classroom_complete_lesson_ajax, name='classroom_complete_lesson_ajax'),
+    path('classrooms/<int:classroom_id>/lessons/<int:lesson_id>/sync-progress/', views_classroom.classroom_sync_lesson_progress_ajax, name='classroom_sync_lesson_progress_ajax'),
+    path('classrooms/<int:classroom_id>/lessons/<int:lesson_id>/sync-multi/', views_classroom.classroom_sync_multi_exercise_ajax, name='classroom_sync_multi_exercise_ajax'),
 ]

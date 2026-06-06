@@ -204,10 +204,25 @@ def test_detail(request, test_id):
             or (hasattr(request.user, 'profile') and (request.user.profile.can_create_exams or request.user.profile.can_create_courses))
         )
         if not is_bypass_test:
-            from lms.models import Lesson
-            lesson = Lesson.objects.filter(test=test).first()
-            if lesson and (lesson.course.creator == request.user or CourseOwnership.has_active_ownership(request.user, lesson.course)):
-                is_bypass_test = True
+            from lms.models import Lesson, ClassroomMembership
+            # Check if accessing in the context of a classroom lesson via lesson_id
+            lesson_id = request.GET.get('lesson_id') or request.POST.get('lesson_id')
+            if lesson_id:
+                lesson_context = Lesson.objects.filter(id=lesson_id, test=test).first()
+                if lesson_context and ClassroomMembership.objects.filter(
+                    student=request.user,
+                    status='APPROVED',
+                    classroom__items__lesson=lesson_context
+                ).exists():
+                    is_bypass_test = True
+
+            if not is_bypass_test:
+                associated_lessons = Lesson.objects.filter(test=test)
+                for al in associated_lessons:
+                    if al.course.creator == request.user or CourseOwnership.has_active_ownership(request.user, al.course):
+                        is_bypass_test = True
+                        break
+
                 
         if is_bypass_test:
             is_registered = True
@@ -912,10 +927,25 @@ def take_test(request, test_id):
         or (hasattr(request.user, 'profile') and (request.user.profile.can_create_exams or request.user.profile.can_create_courses))
     )
     if not is_bypass_test:
-        from lms.models import Lesson
-        lesson = Lesson.objects.filter(test=test).first()
-        if lesson and (lesson.course.creator == request.user or CourseOwnership.has_active_ownership(request.user, lesson.course)):
-            is_bypass_test = True
+        from lms.models import Lesson, ClassroomMembership
+        # Check if accessing in the context of a classroom lesson via lesson_id
+        lesson_id = request.GET.get('lesson_id') or request.POST.get('lesson_id')
+        if lesson_id:
+            lesson_context = Lesson.objects.filter(id=lesson_id, test=test).first()
+            if lesson_context and ClassroomMembership.objects.filter(
+                student=request.user,
+                status='APPROVED',
+                classroom__items__lesson=lesson_context
+            ).exists():
+                is_bypass_test = True
+
+        if not is_bypass_test:
+            associated_lessons = Lesson.objects.filter(test=test)
+            for al in associated_lessons:
+                if al.course.creator == request.user or CourseOwnership.has_active_ownership(request.user, al.course):
+                    is_bypass_test = True
+                    break
+
     
     if test.is_official:
         if is_exam_over:

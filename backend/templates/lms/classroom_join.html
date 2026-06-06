@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Tham gia lớp học: {{ classroom.name }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto py-16 px-4">
+    
+    <!-- Join Card -->
+    <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden text-center p-8 relative">
+        <!-- Abstract Top Pattern -->
+        <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+        
+        <!-- Icon Badge -->
+        <div class="w-20 h-20 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner mt-4">
+            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+        </div>
+
+        <h1 class="text-2xl font-black text-gray-900 font-outfit leading-tight mb-2">Lời mời tham gia lớp học</h1>
+        <p class="text-xs text-slate-400 font-light mb-6">Bạn nhận được một liên kết mời tham gia vào lớp học học tập dưới đây:</p>
+
+        <!-- Class Meta Box -->
+        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-5 mb-8 text-left space-y-3">
+            <div>
+                <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tên lớp học</span>
+                <span class="text-base font-bold text-indigo-950 font-outfit">{{ classroom.name }}</span>
+            </div>
+            
+            <div>
+                <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Giáo viên phụ trách</span>
+                <span class="text-sm font-semibold text-slate-700">{{ classroom.creator.username }}</span>
+            </div>
+
+            {% if classroom.description %}
+            <div>
+                <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mô tả</span>
+                <span class="text-xs text-slate-500 font-light line-clamp-3 leading-relaxed">{{ classroom.description }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Conditional Status Actions -->
+        {% if not membership %}
+            <!-- Not a member: request to join -->
+            <form method="post" action="{% url 'join_classroom_by_code' classroom.invite_code %}">
+                {% csrf_token %}
+                <button type="submit" class="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1">
+                    Gửi yêu cầu tham gia lớp
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+            </form>
+        {% elif membership.status == 'PENDING' %}
+            <!-- Pending approval -->
+            <div class="p-4 bg-amber-50 border border-amber-100 text-amber-800 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                <svg class="animate-spin h-4 w-4 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Yêu cầu đang chờ giáo viên phê duyệt...
+            </div>
+            <a href="{% url 'classroom_list' %}" class="block text-xs text-indigo-600 hover:text-indigo-800 font-bold mt-4">Quay lại danh sách lớp</a>
+        {% elif membership.status == 'APPROVED' %}
+            <!-- Already joined -->
+            <div class="space-y-3">
+                <div class="p-3.5 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-sm font-bold">
+                    Bạn đã là thành viên chính thức của lớp này!
+                </div>
+                <a href="{% url 'classroom_dashboard' classroom.id %}" class="w-full block py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-md hover:shadow-lg">
+                    Vào lớp học ngay
+                </a>
+            </div>
+        {% endif %}
+
+    </div>
+
+</div>
+{% endblock %}

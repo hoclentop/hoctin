@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}Danh sách Lớp học - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    
+    <!-- Header Section -->
+    <div class="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-900 font-outfit tracking-tight">Danh sách Lớp học</h1>
+            <p class="text-sm text-gray-500 font-light mt-1">Nơi kết nối giáo viên và học sinh để cùng nhau thảo luận, học tập và làm bài tập trực tuyến.</p>
+        </div>
+        
+        {% if is_teacher %}
+        <div class="flex-shrink-0">
+            <a href="{% url 'create_classroom' %}" class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold rounded-2xl text-sm transition-all shadow-md hover:shadow-lg">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Tạo lớp học mới
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TEACHER SECTION -->
+    {% if is_teacher %}
+    <div class="mb-12">
+        <h2 class="text-xl font-bold text-gray-800 font-outfit mb-5 flex items-center gap-2">
+            <span class="w-2.5 h-6 bg-indigo-600 rounded-full"></span>
+            Lớp học bạn phụ trách ({{ created_classrooms|length }})
+        </h2>
+        
+        {% if not created_classrooms %}
+        <div class="bg-white rounded-3xl border border-gray-150 p-12 text-center">
+            <div class="w-16 h-16 bg-slate-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </svg>
+            </div>
+            <h4 class="font-bold text-gray-800 font-outfit mb-1">Bạn chưa tạo lớp học nào</h4>
+            <p class="text-slate-400 text-xs max-w-sm mx-auto mb-5 font-light">Hãy tạo một lớp học học tập để thêm học sinh và giao bài tập.</p>
+            <a href="{% url 'create_classroom' %}" class="inline-flex items-center px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-colors">
+                Tạo ngay
+            </a>
+        </div>
+        {% else %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for classroom in created_classrooms %}
+            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider">Giáo viên</span>
+                        <span class="text-xs text-slate-400 font-mono">{{ classroom.created_at|date:"d/m/Y" }}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-800 font-outfit line-clamp-1 mb-2">{{ classroom.name }}</h3>
+                    <p class="text-slate-400 text-xs font-light line-clamp-3 mb-4">{{ classroom.description|default:"Chưa có mô tả lớp học." }}</p>
+                </div>
+                
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                    <span class="text-xs text-slate-500 font-medium font-outfit">
+                        Sĩ số: <strong class="text-slate-800">{{ classroom.memberships.count }}</strong>
+                    </span>
+                    <a href="{% url 'classroom_dashboard' classroom.id %}" class="px-4 py-2 bg-white hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 hover:border-indigo-300 text-slate-700 font-bold rounded-xl text-xs transition-all flex items-center gap-1 shadow-sm">
+                        Quản lý lớp
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- STUDENT SECTION -->
+    <div>
+        <h2 class="text-xl font-bold text-gray-800 font-outfit mb-5 flex items-center gap-2">
+            <span class="w-2.5 h-6 bg-indigo-600 rounded-full"></span>
+            Lớp học bạn tham gia ({{ joined_classrooms|length }})
+        </h2>
+        
+        {% if not joined_classrooms %}
+        <div class="bg-white rounded-3xl border border-gray-150 p-12 text-center mb-8">
+            <div class="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+            </div>
+            <h4 class="font-bold text-gray-800 font-outfit mb-1">Bạn chưa tham gia lớp học nào</h4>
+            <p class="text-slate-400 text-xs max-w-sm mx-auto font-light">Hãy liên hệ với giáo viên của bạn để nhận link mời tham gia lớp học học tập.</p>
+        </div>
+        {% else %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {% for classroom in joined_classrooms %}
+            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider">Học viên</span>
+                        <span class="text-xs text-slate-400 font-mono">{{ classroom.created_at|date:"d/m/Y" }}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-800 font-outfit line-clamp-1 mb-2">{{ classroom.name }}</h3>
+                    <p class="text-slate-400 text-xs font-light line-clamp-2 mb-3">{{ classroom.description|default:"Chưa có mô tả lớp học." }}</p>
+                    <div class="text-xs text-slate-500 font-medium">Giáo viên: <strong class="text-slate-700 font-outfit">{{ classroom.creator.username }}</strong></div>
+                </div>
+                
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+                    <a href="{% url 'classroom_dashboard' classroom.id %}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1 shadow-sm">
+                        Vào lớp học
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- PENDING APPROVAL SECTION -->
+    {% if pending_classrooms %}
+    <div>
+        <h2 class="text-xl font-bold text-gray-800 font-outfit mb-5 flex items-center gap-2">
+            <span class="w-2.5 h-6 bg-amber-500 rounded-full"></span>
+            Yêu cầu đang chờ duyệt ({{ pending_classrooms|length }})
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for classroom in pending_classrooms %}
+            <div class="bg-white rounded-3xl border border-amber-100 bg-amber-50/10 p-6 flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-amber-100/20 rounded-full -mr-8 -mt-8"></div>
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider">Chờ phê duyệt</span>
+                        <span class="text-xs text-slate-400 font-mono">{{ classroom.created_at|date:"d/m/Y" }}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-800 font-outfit line-clamp-1 mb-2">{{ classroom.name }}</h3>
+                    <p class="text-slate-400 text-xs font-light line-clamp-2 mb-3">{{ classroom.description|default:"Chưa có mô tả lớp học." }}</p>
+                    <div class="text-xs text-slate-500 font-medium">Giáo viên: <strong class="text-slate-700 font-outfit">{{ classroom.creator.username }}</strong></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Giao bài học có sẵn vào lớp: {{ classroom.name }} - HocTin LMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+    
+    <!-- Breadcrumb -->
+    <div class="mb-6">
+        <a href="{% url 'classroom_dashboard' classroom.id %}" class="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-bold gap-1 group">
+            <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Quay lại bảng điều khiển lớp
+        </a>
+    </div>
+
+    <!-- Header Panel -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 font-outfit tracking-tight">Giao bài học có sẵn</h1>
+        <p class="text-sm text-gray-500 font-light mt-1">Chọn các bài học từ danh sách khóa học hiện tại do bạn quản lý để giao cho lớp học **{{ classroom.name }}**.</p>
+    </div>
+
+    <!-- Form -->
+    <form method="post" action="{% url 'classroom_add_existing_lesson' classroom.id %}" class="space-y-6">
+        {% csrf_token %}
+
+        {% if not courses %}
+            <div class="bg-white rounded-3xl border border-gray-150 p-12 text-center">
+                <p class="text-slate-400 text-sm">Bạn chưa có khóa học nào để chọn bài học.</p>
+            </div>
+        {% else %}
+            <!-- Course Accordion / List -->
+            <div class="space-y-4">
+                {% for course in courses %}
+                    {% if course.lessons.exists %}
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden" x-data="{ open: true }">
+                        <!-- Course Header Bar -->
+                        <div class="bg-slate-50 px-6 py-4 flex items-center justify-between border-b border-slate-100 cursor-pointer select-none" @click="open = !open">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                <h3 class="font-bold text-slate-800 font-outfit text-sm">{{ course.title }}</h3>
+                            </div>
+                            <svg class="w-4 h-4 text-gray-400 transform transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                        
+                        <!-- Lessons list -->
+                        <div class="p-6 divide-y divide-slate-100" x-show="open" x-collapse>
+                            {% for lesson in course.lessons.all %}
+                                <div class="py-3 flex items-start gap-4">
+                                    <div class="flex items-center h-5 mt-0.5">
+                                        <input id="lesson-{{ lesson.id }}" name="lesson_ids" value="{{ lesson.id }}" type="checkbox"
+                                               {% if lesson.id in assigned_lesson_ids %}checked disabled{% endif %}
+                                               class="focus:ring-indigo-500 h-4.5 w-4.5 text-indigo-600 border-gray-300 rounded-lg">
+                                    </div>
+                                    <div class="text-sm">
+                                        <label for="lesson-{{ lesson.id }}" class="font-bold text-slate-700 cursor-pointer">
+                                            {{ lesson.title }}
+                                        </label>
+                                        <div class="text-slate-400 text-xs font-light mt-0.5 flex gap-3">
+                                            <span>Loại: {{ lesson.get_lesson_type_display }}</span>
+                                            {% if lesson.id in assigned_lesson_ids %}
+                                                <span class="text-indigo-600 font-bold">(Đã giao)</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Actions -->
+        {% if courses %}
+        <div class="flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
+            <a href="{% url 'classroom_dashboard' classroom.id %}" class="px-5 py-3 rounded-xl hover:bg-slate-100 text-slate-600 font-bold transition-all text-sm">
+                Hủy bỏ
+            </a>
+            <button type="submit" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all text-sm shadow-md hover:shadow-lg">
+                Xác nhận giao bài
+            </button>
+        </div>
+        {% endif %}
+
+    </form>
+
+</div>
+{% endblock %}

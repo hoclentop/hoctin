@@ -338,6 +338,7 @@
                         <a href="{% url 'test_list' %}" class="{% if request.resolver_match.url_name == 'test_list' %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Đề thi</a>
                         <a href="{% url 'test_bundle_list' %}" class="{% if request.resolver_match.url_name == 'test_bundle_list' %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Gói đề thi</a>
                         <a href="{% url 'course_bundle_list' %}" class="{% if request.resolver_match.url_name == 'course_bundle_list' %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Gói khóa học</a>
+                        <a href="{% url 'classroom_list' %}" class="{% if 'classroom' in request.resolver_match.url_name %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Lớp học</a>
                         {% if user.is_authenticated %}
                             {% if user.is_staff or user.profile.can_create_courses or user.is_superuser %}
                                 <!-- Dropdown Giáo viên -->
@@ -349,6 +350,7 @@
                                     <div class="absolute top-full left-0 mt-0 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 hidden group-hover:block z-50 transform origin-top-left transition-all duration-150">
                                         <a href="{% url 'teacher_attempts' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors font-medium">Theo dõi học sinh làm đề thi</a>
                                         <a href="{% url 'teacher_courses_progress' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors font-medium">Theo dõi học sinh học bài</a>
+                                        <a href="{% url 'classroom_list' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors font-medium">Quản lý Lớp học</a>
                                         
                                         <div class="border-t border-gray-100 my-1"></div>
                                         

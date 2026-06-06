@@ -469,3 +469,43 @@ class MultiExerciseProgress(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.lesson.title} - {self.link} - {self.is_completed}"
+
+
+class Classroom(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Tên lớp học")
+    description = models.TextField(blank=True, verbose_name="Mô tả lớp học")
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_classrooms', verbose_name="Giáo viên")
+    invite_code = models.CharField(max_length=50, unique=True, default=uuid.uuid4, verbose_name="Mã mời")
+    course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True, related_name='classroom_course', verbose_name="Khóa học nội bộ")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+class ClassroomMembership(models.Model):
+    STATUS_CHOICES = (
+        ('PENDING', 'Chờ duyệt'),
+        ('APPROVED', 'Đã phê duyệt'),
+    )
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='memberships')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='classroom_memberships')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('classroom', 'student')
+
+    def __str__(self):
+        return f"{self.student.username} - {self.classroom.name} ({self.status})"
+
+class ClassroomItem(models.Model):
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='items')
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='classroom_items')
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-added_at']
+
+    def __str__(self):
+        return f"{self.classroom.name} - {self.lesson.title}"
+
