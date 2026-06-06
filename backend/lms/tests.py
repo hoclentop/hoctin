@@ -2252,3 +2252,76 @@ class TestShufflePartsTestCase(TestCase):
         self.assertEqual(parts[0]['part']['id'], 1)
         self.assertEqual(parts[1]['part']['id'], 2)
 
+
+class TestQuestionsQuickAddTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from lms.models import Test, Question
+        
+        self.creator = User.objects.create_superuser(username="admin_quick_add", password="password")
+        self.client.login(username="admin_quick_add", password="password")
+        
+        self.test = Test.objects.create(
+            title="Đề thi test thêm nhanh",
+            price=0.0,
+            duration=60,
+            creator=self.creator
+        )
+        
+        # Tạo 10 câu hỏi để test
+        self.questions = []
+        for i in range(10):
+            q = Question.objects.create(content=f"Câu hỏi test {i+1}", question_type=1)
+            self.questions.append(q)
+
+    def test_add_questions_quick_ranges(self):
+        from django.urls import reverse
+        from lms.models import TestQuestion
+        
+        # Test range tăng dần, có khoảng trắng, dấu phẩy, tab, dòng mới...
+        # Giả sử IDs câu hỏi bắt đầu từ ID của self.questions[0].id
+        base_id = self.questions[0].id
+        
+        # Ví dụ: base_id (đơn lẻ), base_id+1-base_id+3 (range tăng), base_id+7-base_id+5 (range giảm), base_id+9 (đơn lẻ)
+        # Chuỗi: f"{base_id} {base_id+1}-{base_id+3}, {base_id+7} - {base_id+5}\n{base_id+9}"
+        raw_ids = f"{base_id} {base_id+1}-{base_id+3}, {base_id+7} - {base_id+5}\n{base_id+9}"
+        
+        response = self.client.post(
+            reverse('add_questions_quick_ajax', args=[self.test.id]),
+            data={'ids': raw_ids},
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        
+        # Kiểm tra các câu hỏi đã được thêm
+        # Thứ tự mong muốn: base_id (0), base_id+1 (1), base_id+2 (2), base_id+3 (3), base_id+7 (7), base_id+6 (6), base_id+5 (5), base_id+9 (9)
+        added_q_ids = [tq.question.id for tq in TestQuestion.objects.filter(test=self.test).order_by('id')]
+        expected_ids = [
+            base_id,
+            base_id+1,
+            base_id+2,
+            base_id+3,
+            base_id+7,
+            base_id+6,
+            base_id+5,
+            base_id+9
+        ]
+        self.assertEqual(added_q_ids, expected_ids)
+
+    def test_add_questions_quick_range_too_large(self):
+        from django.urls import reverse
+        
+        # Thử với range quá lớn (lớn hơn 500)
+        raw_ids = "1-502"
+        response = self.client.post(
+            reverse('add_questions_quick_ajax', args=[self.test.id]),
+            data={'ids': raw_ids},
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("quá lớn", data['error'])
+
+

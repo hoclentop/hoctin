@@ -3307,8 +3307,31 @@ def add_questions_quick_ajax(request, test_id):
             raw_ids = data.get('ids', '').strip()
             force_add = data.get('force_add', False)
             
+            # Hỗ trợ cả dải liên tục như 2-6
+            # Đưa các dải dạng "số - số" về dạng "số-số" bằng cách xóa khoảng trắng xung quanh dấu gạch ngang
+            normalized_ids = re.sub(r'\s*-\s*', '-', raw_ids)
+            
             # Tách chuỗi bằng dấu cách, phẩy, tab, xuống dòng...
-            id_list = [int(x) for x in re.split(r'[\s,\t\r\n]+', raw_ids) if x.isdigit()]
+            tokens = [x.strip() for x in re.split(r'[\s,\t\r\n]+', normalized_ids) if x.strip()]
+            
+            id_list = []
+            for token in tokens:
+                if token.isdigit():
+                    id_list.append(int(token))
+                else:
+                    # Kiểm tra xem có khớp định dạng dải liên tục "start-end" không
+                    range_match = re.match(r'^(\d+)-(\d+)$', token)
+                    if range_match:
+                        start = int(range_match.group(1))
+                        end = int(range_match.group(2))
+                        # Giới hạn dải tối đa 500 phần tử để tránh quá tải
+                        if abs(end - start) <= 500:
+                            if start <= end:
+                                id_list.extend(range(start, end + 1))
+                            else:
+                                id_list.extend(range(start, end - 1, -1))
+                        else:
+                            return JsonResponse({'error': f'Phạm vi liên tục {token} quá lớn (tối đa 500 số).'}, status=400)
             
             if not id_list:
                 return JsonResponse({'error': 'Không tìm thấy ID câu hỏi hợp lệ nào.'}, status=400)
