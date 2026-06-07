@@ -119,6 +119,22 @@ class QuestionAdmin(admin.ModelAdmin):
             obj.creator = request.user
         super().save_model(request, obj, form, change)
 
+    def response_add(self, request, obj, post_url_continue=None):
+        response = super().response_add(request, obj, post_url_continue)
+        if "_addanother" in request.POST and obj.group_id:
+            from django.http import HttpResponseRedirect
+            if isinstance(response, HttpResponseRedirect):
+                response['Location'] += f"?group={obj.group_id}"
+        return response
+
+    def response_change(self, request, obj):
+        response = super().response_change(request, obj)
+        if "_addanother" in request.POST and obj.group_id:
+            from django.http import HttpResponseRedirect
+            if isinstance(response, HttpResponseRedirect):
+                response['Location'] += f"?group={obj.group_id}"
+        return response
+
 @admin.register(QuestionGroup)
 class QuestionGroupAdmin(admin.ModelAdmin):
     pass

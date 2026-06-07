@@ -2173,14 +2173,19 @@ def create_question(request):
                         
         messages.success(request, "Tạo câu hỏi mới thành công!")
         if request.POST.get('action') == 'save_and_continue':
-            return redirect('create_question')
+            url = reverse('create_question')
+            if group_id:
+                url += f"?group_id={group_id}"
+            return redirect(url)
         return redirect('/admin/lms/question/')
         
     groups = QuestionGroup.objects.all()
     equivalent_groups = EquivalentQuestionGroup.objects.all()
+    preselected_group_id = request.GET.get('group_id', '')
     return render(request, 'lms/create_question.html', {
         'groups': groups,
         'equivalent_groups': equivalent_groups,
+        'preselected_group_id': preselected_group_id,
     })
 
 
