@@ -2393,5 +2393,44 @@ class QuestionImportDirectToTestTestCase(TestCase):
         self.assertEqual(tqs[1].order_index, 2)
         self.assertEqual(tqs[1].part_number, 1)
 
+    def test_create_question_with_test_id(self):
+        from django.urls import reverse
+        from lms.models import Question, Choice, TestQuestion
+        
+        # Test GET request
+        response = self.client.get(reverse('create_question') + f"?test_id={self.test.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['test'], self.test)
+        self.assertEqual(response.context['test_id'], str(self.test.id))
+        
+        # Test POST request to create question and link it to test
+        data = {
+            'question_type': '1',
+            'content': 'Câu hỏi được thêm trực tiếp?',
+            'choice_text_1[]': ['Đáp án A', 'Đáp án B'],
+            'choice_position_1[]': ['1', '2'],
+            'correct_choice_1': '0',
+            'is_public': 'on',
+            'action': 'save'
+        }
+        
+        response = self.client.post(
+            reverse('create_question') + f"?test_id={self.test.id}",
+            data=data
+        )
+        # Should redirect to manage_test_structure page
+        self.assertRedirects(response, reverse('manage_test_structure', args=[self.test.id]))
+        
+        # Verify question and choice were created
+        question = Question.objects.filter(content='Câu hỏi được thêm trực tiếp?').first()
+        self.assertIsNotNone(question)
+        
+        # Verify linked TestQuestion exists
+        tq = TestQuestion.objects.filter(test=self.test, question=question).first()
+        self.assertIsNotNone(tq)
+        self.assertEqual(tq.points, 1.0)
+        self.assertEqual(tq.part_number, 1)
+
+
 
 

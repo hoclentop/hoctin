@@ -2153,8 +2153,8 @@ def create_question(request):
                             is_correct=ans_val,
                             position=pos
                         )
+            # Lưu trả lời ngắn (chấp nhận nhiều đáp án đúng, mỗi đáp án có cấu hình so khớp riêng biệt)
             elif question_type == 4:
-                # Trả lời ngắn (chấp nhận nhiều đáp án đúng, mỗi đáp án có cấu hình so khớp riêng biệt)
                 choice_texts = request.POST.getlist('choice_text_4[]')
                 case_sensitive_list = request.POST.getlist('is_case_sensitive_4[]')
                 ignore_spaces_list = request.POST.getlist('ignore_spaces_4[]')
@@ -2171,21 +2171,58 @@ def create_question(request):
                             position=(1 if is_is else 0)   # Lưu Bỏ qua khoảng trắng vào position (1: có, 0: không)
                         )
                         
+            # Link to test if test_id is present
+            test_id = request.GET.get('test_id') or request.POST.get('test_id')
+            test = None
+            if test_id:
+                test = Test.objects.filter(id=test_id).first()
+                if test:
+                    # Ensure part 1 has instruction
+                    TestPartInstruction.objects.get_or_create(test=test, part_number=1)
+                    # Calculate next order_index
+                    from django.db.models import Max
+                    current_max = TestQuestion.objects.filter(test=test, part_number=1).aggregate(Max('order_index'))['order_index__max'] or 0
+                    next_order = current_max + 1
+                    
+                    # Create test question link
+                    TestQuestion.objects.create(
+                        test=test,
+                        question=question,
+                        points=1.0,
+                        optional_type='NONE',
+                        order_index=next_order,
+                        part_number=1
+                    )
+                        
         messages.success(request, "Tạo câu hỏi mới thành công!")
         if request.POST.get('action') == 'save_and_continue':
             url = reverse('create_question')
+            params = []
             if group_id:
-                url += f"?group_id={group_id}"
+                params.append(f"group_id={group_id}")
+            if test_id:
+                params.append(f"test_id={test_id}")
+            if params:
+                url += "?" + "&".join(params)
             return redirect(url)
+            
+        if test:
+            return redirect('manage_test_structure', test_id=test.id)
         return redirect('/admin/lms/question/')
         
     groups = QuestionGroup.objects.all()
     equivalent_groups = EquivalentQuestionGroup.objects.all()
     preselected_group_id = request.GET.get('group_id', '')
+    test_id = request.GET.get('test_id', '')
+    test = None
+    if test_id:
+        test = Test.objects.filter(id=test_id).first()
     return render(request, 'lms/create_question.html', {
         'groups': groups,
         'equivalent_groups': equivalent_groups,
         'preselected_group_id': preselected_group_id,
+        'test': test,
+        'test_id': test_id,
     })
 
 
@@ -3716,9 +3753,11 @@ def question_import(request):
         
     groups = QuestionGroup.objects.all()
     tests = Test.objects.all().order_by('-id')
+    default_test_id = request.GET.get('test_id', '')
     return render(request, 'lms/question_import.html', {
         'groups': groups,
-        'tests': tests
+        'tests': tests,
+        'default_test_id': default_test_id
     })
 
 
