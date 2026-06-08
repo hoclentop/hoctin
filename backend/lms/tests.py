@@ -2325,3 +2325,73 @@ class TestQuestionsQuickAddTestCase(TestCase):
         self.assertIn("quá lớn", data['error'])
 
 
+class QuestionImportDirectToTestTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from lms.models import Test
+        
+        self.user = User.objects.create_superuser(username="admin_import", password="password")
+        self.client.login(username="admin_import", password="password")
+        
+        self.test = Test.objects.create(
+            title="Đề thi import trực tiếp",
+            price=0.0,
+            duration=60,
+            creator=self.user
+        )
+
+    def test_save_import_ajax_with_test_id(self):
+        from django.urls import reverse
+        from lms.models import Question, Choice, TestQuestion
+        
+        import_data = {
+            'questions': [
+                {
+                    'content': 'Thủ đô của Việt Nam?',
+                    'type': 1,
+                    'choices': [
+                        {'content': 'Hà Nội', 'is_correct': True},
+                        {'content': 'Hồ Chí Minh', 'is_correct': False}
+                    ],
+                    'valid': True
+                },
+                {
+                    'content': 'Các tỉnh Tây Nguyên?',
+                    'type': 2,
+                    'choices': [
+                        {'content': 'Lâm Đồng', 'is_correct': True},
+                        {'content': 'Cần Thơ', 'is_correct': False}
+                    ],
+                    'valid': True
+                }
+            ],
+            'group_id': None,
+            'test_id': self.test.id
+        }
+        
+        response = self.client.post(
+            reverse('save_import_ajax'),
+            data=import_data,
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 2)
+        
+        # Verify TestQuestions are created and linked to the test
+        tqs = list(TestQuestion.objects.filter(test=self.test).order_by('order_index'))
+        self.assertEqual(len(tqs), 2)
+        
+        # First question check
+        self.assertEqual(tqs[0].question.content, 'Thủ đô của Việt Nam?')
+        self.assertEqual(tqs[0].order_index, 1)
+        self.assertEqual(tqs[0].part_number, 1)
+        
+        # Second question check
+        self.assertEqual(tqs[1].question.content, 'Các tỉnh Tây Nguyên?')
+        self.assertEqual(tqs[1].order_index, 2)
+        self.assertEqual(tqs[1].part_number, 1)
+
+
+

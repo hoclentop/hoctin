@@ -57,6 +57,7 @@
         totalParsed: 0,
         totalValid: 0,
         selectedGroupId: '',
+        selectedTestId: '',
         hasRunValidation: false,
 
         // Mẫu dữ liệu Aiken mở rộng để chèn nhanh
@@ -179,13 +180,18 @@ $$\\lim_{x \\to 0} \\frac{\\sin x}{x}$$
                     },
                     body: JSON.stringify({
                         questions: this.parsedQuestions,
-                        group_id: this.selectedGroupId ? parseInt(this.selectedGroupId) : null
+                        group_id: this.selectedGroupId ? parseInt(this.selectedGroupId) : null,
+                        test_id: this.selectedTestId ? parseInt(this.selectedTestId) : null
                     })
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
                     alert(result.message);
-                    window.location.href = '/questions/';
+                    if (this.selectedTestId) {
+                        window.location.href = `/tests/${this.selectedTestId}/structure/`;
+                    } else {
+                        window.location.href = '/questions/';
+                    }
                 } else {
                     alert('Lỗi khi lưu câu hỏi: ' + (result.error || 'Vui lòng thử lại.'));
                 }
@@ -318,8 +324,8 @@ $$\\lim_{x \\to 0} \\frac{\\sin x}{x}$$
                 </div>
 
                 <!-- Footer Operations -->
-                <div class="px-6 py-4 bg-gray-50/75 border-t border-gray-200 flex items-center justify-between">
-                    <div>
+                <div class="px-6 py-4 bg-gray-50/75 border-t border-gray-200 flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex flex-wrap items-center gap-4">
                         <!-- Optional assignment of default group -->
                         <div class="flex items-center gap-2">
                             <label for="group-select" class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap">Chọn nhóm mặc định:</label>
@@ -332,13 +338,26 @@ $$\\lim_{x \\to 0} \\frac{\\sin x}{x}$$
                                 {% endfor %}
                             </select>
                         </div>
+
+                        <!-- Optional assignment of default test -->
+                        <div class="flex items-center gap-2">
+                            <label for="test-select" class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap">Thêm thẳng vào đề thi:</label>
+                            <select id="test-select"
+                                    x-model="selectedTestId"
+                                    class="py-1.5 px-3 bg-white border-gray-300 rounded-lg text-xs font-semibold focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">-- Không thêm vào đề thi --</option>
+                                {% for t in tests %}
+                                    <option value="{{ t.id }}">{{ t.title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                     
                     <button type="button"
                             @click="validateImport()"
                             :disabled="isParsing || (activeTab === 'csv' && !csvFile)"
                             :class="(isParsing || (activeTab === 'csv' && !csvFile)) ? 'opacity-50 cursor-not-allowed bg-gray-300 text-gray-500' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100'"
-                            class="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                            class="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 flex-shrink-0">
                         <svg x-show="isParsing" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>

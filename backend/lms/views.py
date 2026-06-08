@@ -3715,8 +3715,10 @@ def question_import(request):
         return redirect('question_list')
         
     groups = QuestionGroup.objects.all()
+    tests = Test.objects.all().order_by('-id')
     return render(request, 'lms/question_import.html', {
-        'groups': groups
+        'groups': groups,
+        'tests': tests
     })
 
 
@@ -3894,6 +3896,7 @@ def save_import_ajax(request):
         data = json.loads(request.body)
         questions_data = data.get('questions', [])
         group_id = data.get('group_id')
+        test_id = data.get('test_id')
         
         if not questions_data:
             return JsonResponse({'error': 'Danh sách câu hỏi trống.'}, status=400)
@@ -3902,8 +3905,23 @@ def save_import_ajax(request):
         if group_id:
             group = QuestionGroup.objects.filter(id=group_id).first()
             
+        test = None
+        if test_id:
+            test = Test.objects.filter(id=test_id).first()
+            if not test:
+                return JsonResponse({'error': 'Đề thi đã chọn không tồn tại.'}, status=400)
+            
         saved_count = 0
         with transaction.atomic():
+            next_order = 1
+            if test:
+                # Ensure part 1 has instruction
+                TestPartInstruction.objects.get_or_create(test=test, part_number=1)
+                # Calculate starting order_index
+                from django.db.models import Max
+                current_max = TestQuestion.objects.filter(test=test, part_number=1).aggregate(Max('order_index'))['order_index__max'] or 0
+                next_order = current_max + 1
+
             for q_item in questions_data:
                 if not q_item.get('valid', False):
                     continue
@@ -3924,6 +3942,17 @@ def save_import_ajax(request):
                         position=1
                     )
                 saved_count += 1
+                
+                if test:
+                    TestQuestion.objects.create(
+                        test=test,
+                        question=q_obj,
+                        points=1.0,
+                        optional_type='NONE',
+                        order_index=next_order,
+                        part_number=1
+                    )
+                    next_order += 1
                 
         return JsonResponse({
             'success': True,
