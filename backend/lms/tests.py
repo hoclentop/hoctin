@@ -2366,9 +2366,11 @@ class QuestionImportDirectToTestTestCase(TestCase):
                 }
             ],
             'group_id': None,
-            'test_id': self.test.id
+            'test_id': self.test.id,
+            'default_points': 0.5
         }
         
+        # Test POST request to save import
         response = self.client.post(
             reverse('save_import_ajax'),
             data=import_data,
@@ -2387,11 +2389,13 @@ class QuestionImportDirectToTestTestCase(TestCase):
         self.assertEqual(tqs[0].question.content, 'Thủ đô của Việt Nam?')
         self.assertEqual(tqs[0].order_index, 1)
         self.assertEqual(tqs[0].part_number, 1)
+        self.assertEqual(tqs[0].points, 0.5)
         
         # Second question check
         self.assertEqual(tqs[1].question.content, 'Các tỉnh Tây Nguyên?')
-        self.assertEqual(tqs[1].order_index, 2)
+        self.assertEqual(tqs[1].order_index, 1)
         self.assertEqual(tqs[1].part_number, 1)
+        self.assertEqual(tqs[1].points, 0.5)
 
     def test_create_question_with_test_id(self):
         from django.urls import reverse

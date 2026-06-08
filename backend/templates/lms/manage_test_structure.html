@@ -25,8 +25,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+<div class="mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300"
+     :class="showBank ? 'max-w-7xl' : 'max-w-[95rem]'"
      x-data="{
+        showBank: localStorage.getItem('showBank') !== 'false',
         // Khởi tạo danh sách câu hỏi phẳng từ Django
         questions: [
             {% for part in parts_data %}
@@ -104,6 +106,11 @@
         get totalParts() {
             let partNums = new Set(this.questions.map(q => q.part_number));
             return partNums.size || 1;
+        },
+
+        toggleBank() {
+            this.showBank = !this.showBank;
+            localStorage.setItem('showBank', this.showBank);
         },
 
         init() {
@@ -524,6 +531,17 @@
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                         Xem thử đề thi
                     </a>
+                    <button type="button" @click="toggleBank()" class="text-xs font-bold transition-all duration-200 flex items-center gap-1.5 p-2 py-1 rounded-lg border shadow-sm hover:shadow"
+                            :class="showBank ? 'text-slate-600 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 border-slate-200' : 'text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'">
+                        <svg x-show="showBank" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+                        </svg>
+                        <svg x-show="!showBank" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        <span x-text="showBank ? 'Ẩn ngân hàng câu hỏi' : 'Hiện ngân hàng câu hỏi'"></span>
+                    </button>
                 </div>
             </h1>
             <p class="text-gray-500 text-sm mt-1">Chỉnh sửa trực tiếp điểm số, thứ tự, loại câu hỏi và phần thi (số nguyên) trên Bảng phẳng bên dưới.</p>
@@ -545,8 +563,8 @@
     <!-- Main Two-Column Panel -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        <!-- COLUMN 1: CURRENT EXAM STRUCTURE (FLAT TABLE - 7 cols) -->
-        <div class="lg:col-span-7 space-y-6">
+        <!-- COLUMN 1: CURRENT EXAM STRUCTURE (FLAT TABLE - 7 cols or 12 cols when bank is hidden) -->
+        <div :class="showBank ? 'lg:col-span-7' : 'lg:col-span-12'" class="space-y-6 transition-all duration-300">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-bold text-gray-900 font-outfit">Lựa chọn câu hỏi vào đề thi</h3>
             </div>
@@ -693,7 +711,7 @@
         </div>
 
         <!-- COLUMN 2: QUESTION BANK LIVE SEARCH PANEL (5 cols) -->
-        <div class="lg:col-span-5">
+        <div class="lg:col-span-5" x-show="showBank" x-transition>
             <div class="sticky top-6 bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col max-h-[85vh]">
                 
                 <!-- Live Search Header Banner -->

@@ -58,6 +58,7 @@
         totalValid: 0,
         selectedGroupId: '',
         selectedTestId: '{{ default_test_id|default:"" }}',
+        defaultPoints: '1.0',
         hasRunValidation: false,
 
         // Mẫu dữ liệu Aiken mở rộng để chèn nhanh
@@ -181,7 +182,8 @@ $$\\lim_{x \\to 0} \\frac{\\sin x}{x}$$
                     body: JSON.stringify({
                         questions: this.parsedQuestions,
                         group_id: this.selectedGroupId ? parseInt(this.selectedGroupId) : null,
-                        test_id: this.selectedTestId ? parseInt(this.selectedTestId) : null
+                        test_id: this.selectedTestId ? parseInt(this.selectedTestId) : null,
+                        default_points: parseFloat(this.defaultPoints) || 1.0
                     })
                 });
                 const result = await response.json();
@@ -350,6 +352,15 @@ $$\\lim_{x \\to 0} \\frac{\\sin x}{x}$$
                                     <option value="{{ t.id }}">{{ t.title }}</option>
                                 {% endfor %}
                             </select>
+                        </div>
+
+                        <!-- Default points for test questions -->
+                        <div class="flex items-center gap-2" x-show="selectedTestId" x-transition>
+                            <label for="points-input" class="text-xs font-bold text-gray-400 uppercase whitespace-nowrap">Điểm mặc định:</label>
+                            <input type="number" id="points-input"
+                                   x-model="defaultPoints"
+                                   step="0.25" min="0.1" max="100"
+                                   class="py-1 px-2 w-16 bg-white border-gray-300 rounded-lg text-xs font-bold focus:ring-indigo-500 focus:border-indigo-500 text-center font-mono">
                         </div>
                     </div>
                     

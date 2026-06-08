@@ -2180,9 +2180,9 @@ def create_question(request):
                     # Ensure part 1 has instruction
                     TestPartInstruction.objects.get_or_create(test=test, part_number=1)
                     # Calculate next order_index
-                    from django.db.models import Max
-                    current_max = TestQuestion.objects.filter(test=test, part_number=1).aggregate(Max('order_index'))['order_index__max'] or 0
-                    next_order = current_max + 1
+                    #from django.db.models import Max
+                    #current_max = TestQuestion.objects.filter(test=test, part_number=1).aggregate(Max('order_index'))['order_index__max'] or 0
+                    #next_order = current_max + 1
                     
                     # Create test question link
                     TestQuestion.objects.create(
@@ -2190,7 +2190,7 @@ def create_question(request):
                         question=question,
                         points=1.0,
                         optional_type='NONE',
-                        order_index=next_order,
+                        order_index=1,
                         part_number=1
                     )
                         
@@ -3937,6 +3937,13 @@ def save_import_ajax(request):
         group_id = data.get('group_id')
         test_id = data.get('test_id')
         
+        try:
+            default_points = float(data.get('default_points', 1.0))
+            if default_points <= 0:
+                default_points = 1.0
+        except (ValueError, TypeError):
+            default_points = 1.0
+        
         if not questions_data:
             return JsonResponse({'error': 'Danh sách câu hỏi trống.'}, status=400)
             
@@ -3957,9 +3964,9 @@ def save_import_ajax(request):
                 # Ensure part 1 has instruction
                 TestPartInstruction.objects.get_or_create(test=test, part_number=1)
                 # Calculate starting order_index
-                from django.db.models import Max
-                current_max = TestQuestion.objects.filter(test=test, part_number=1).aggregate(Max('order_index'))['order_index__max'] or 0
-                next_order = current_max + 1
+                #from django.db.models import Max
+                #current_max = TestQuestion.objects.filter(test=test, part_number=1).aggregate(Max('order_index'))['order_index__max'] or 0
+                #next_order = current_max + 1
 
             for q_item in questions_data:
                 if not q_item.get('valid', False):
@@ -3986,12 +3993,12 @@ def save_import_ajax(request):
                     TestQuestion.objects.create(
                         test=test,
                         question=q_obj,
-                        points=1.0,
+                        points=default_points,
                         optional_type='NONE',
                         order_index=next_order,
                         part_number=1
                     )
-                    next_order += 1
+                    #next_order += 1
                 
         return JsonResponse({
             'success': True,
