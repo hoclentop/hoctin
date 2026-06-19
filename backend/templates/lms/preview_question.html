@@ -175,7 +175,7 @@
             <div class="p-6 space-y-6">
                 <!-- Question Text Content -->
                 <div>
-                    <div id="rendered-question-content" class="text-gray-900 font-semibold text-base leading-relaxed bg-indigo-50/10 border border-indigo-50 p-5 rounded-2xl question-body shadow-inner">
+                    <div id="rendered-question-content" class="text-gray-900 font-normal text-base leading-relaxed bg-indigo-50/10 border border-indigo-50 p-5 rounded-2xl question-body shadow-inner">
                     </div>
                 </div>
 
@@ -192,7 +192,12 @@
                                         <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold {% if choice.is_correct %}bg-emerald-500 text-white{% else %}bg-gray-100 text-gray-500{% endif %}">
                                             {{ forloop.counter }}
                                         </span>
-                                        <span class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</span>
+                                        <span class="text-gray-800 text-sm font-normal flex items-baseline gap-1.5">
+                                            <span class="font-bold flex-shrink-0">
+                                                {% if forloop.counter == 1 %}A.{% elif forloop.counter == 2 %}B.{% elif forloop.counter == 3 %}C.{% elif forloop.counter == 4 %}D.{% elif forloop.counter == 5 %}E.{% elif forloop.counter == 6 %}F.{% else %}{{ forloop.counter }}.{% endif %}
+                                            </span>
+                                            <span class="markdown-content">{{ choice.content }}</span>
+                                        </span>
                                     </div>
                                     {% if choice.is_correct %}
                                         <span class="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
@@ -216,7 +221,12 @@
                                         <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-500">
                                             {{ forloop.counter }}
                                         </span>
-                                        <div class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</div>
+                                        <div class="text-gray-800 text-sm font-normal flex items-baseline gap-1.5">
+                                            <span class="font-bold flex-shrink-0">
+                                                {% if forloop.counter == 1 %}a){% elif forloop.counter == 2 %}b){% elif forloop.counter == 3 %}c){% elif forloop.counter == 4 %}d){% else %}{{ forloop.counter }}){% endif %}
+                                            </span>
+                                            <span class="markdown-content">{{ choice.content }}</span>
+                                        </div>
                                     </div>
                                     <span class="px-3.5 py-1 rounded-lg text-xs font-extrabold shadow-sm {% if choice.is_correct %}bg-emerald-500 border border-emerald-600 text-white{% else %}bg-rose-500 border border-rose-600 text-white{% endif %}">
                                         {{ choice.is_correct|yesno:'ĐÚNG,SAI' }}
@@ -283,7 +293,7 @@
                     <div class="p-6 space-y-6">
                         <!-- Question Text Content -->
                         <div>
-                            <div id="rendered-question-content-{{ eq_q.id }}" class="text-gray-900 font-semibold text-base leading-relaxed bg-indigo-50/10 border border-indigo-50 p-5 rounded-2xl question-body shadow-inner">
+                            <div id="rendered-question-content-{{ eq_q.id }}" class="text-gray-900 font-normal text-base leading-relaxed bg-indigo-50/10 border border-indigo-50 p-5 rounded-2xl question-body shadow-inner">
                             </div>
                         </div>
 
@@ -300,7 +310,12 @@
                                                 <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold {% if choice.is_correct %}bg-emerald-500 text-white{% else %}bg-gray-100 text-gray-500{% endif %}">
                                                     {{ forloop.counter }}
                                                 </span>
-                                                <span class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</span>
+                                                <span class="text-gray-800 text-sm font-normal flex items-baseline gap-1.5">
+                                             <span class="font-bold flex-shrink-0">
+                                                 {% if forloop.counter == 1 %}A.{% elif forloop.counter == 2 %}B.{% elif forloop.counter == 3 %}C.{% elif forloop.counter == 4 %}D.{% elif forloop.counter == 5 %}E.{% elif forloop.counter == 6 %}F.{% else %}{{ forloop.counter }}.{% endif %}
+                                             </span>
+                                             <span class="markdown-content">{{ choice.content }}</span>
+                                         </span>
                                             </div>
                                             {% if choice.is_correct %}
                                                 <span class="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
@@ -324,7 +339,12 @@
                                                 <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-100 text-gray-500">
                                                     {{ forloop.counter }}
                                                 </span>
-                                                <div class="text-gray-800 text-sm font-semibold markdown-content">{{ choice.content }}</div>
+                                                <div class="text-gray-800 text-sm font-normal flex items-baseline gap-1.5">
+                                             <span class="font-bold flex-shrink-0">
+                                                 {% if forloop.counter == 1 %}a){% elif forloop.counter == 2 %}b){% elif forloop.counter == 3 %}c){% elif forloop.counter == 4 %}d){% else %}{{ forloop.counter }}){% endif %}
+                                             </span>
+                                             <span class="markdown-content">{{ choice.content }}</span>
+                                         </div>
                                             </div>
                                             <span class="px-3.5 py-1 rounded-lg text-xs font-extrabold shadow-sm {% if choice.is_correct %}bg-emerald-500 border border-emerald-600 text-white{% else %}bg-rose-500 border border-rose-600 text-white{% endif %}">
                                                 {{ choice.is_correct|yesno:'ĐÚNG,SAI' }}

@@ -657,7 +657,7 @@
                     <!-- Question text block -->
                     <div>
                         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2.5">Nội dung câu hỏi</h4>
-                        <div id="modal-rendered-content" class="text-gray-900 font-medium text-base leading-relaxed bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                        <div id="modal-rendered-content" class="text-gray-900 font-normal text-base leading-relaxed bg-gray-50 p-4 rounded-2xl border border-gray-200">
                             <!-- Populated by JavaScript -->
                         </div>
                     </div>
@@ -676,7 +676,10 @@
                                             <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
                                                   :class="choice.is_correct ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-100 border border-gray-300 text-gray-500'"
                                                   x-text="activeQuestion.type === 1 ? String.fromCharCode(65 + idx) : (idx + 1)"></span>
-                                            <div class="text-gray-800 text-sm font-medium" x-html="choice.text"></div>
+                                            <div class="text-gray-800 text-sm font-normal flex items-baseline gap-1">
+                                                <span class="font-bold flex-shrink-0" x-text="activeQuestion.type === 3 ? String.fromCharCode(97 + idx) + ')' : String.fromCharCode(65 + idx) + '.'"></span>
+                                                <span x-html="choice.text"></span>
+                                            </div>
                                         </div>
                                         <span x-show="choice.is_correct" class="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
                                             <span x-text="activeQuestion.type === 3 ? (choice.is_correct ? 'Đúng' : 'Sai') : 'Đúng'"></span>
